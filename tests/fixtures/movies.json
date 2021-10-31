@@ -1,0 +1,84 @@
+[
+    {
+        "Content_handle": "26-0.0-S_c446c8e2",
+        "Title": "Turtle Odyssey",
+        "Cover_URL": "http://192.168.0.121/panelcoverart/e1253789a1877d7c/41236954.jpg",
+        "HiRes_cover_URL": "http://192.168.0.121/panelcoverarthr/e1253789a1877d7c/41236954.jpg",
+        "Rating": "NR-G",
+        "Year": "2018",
+        "Running_time": "10",
+        "Actors": "",
+        "Directors": "",
+        "Genres": "Documentary\rNature",
+        "Rating_reason": "",
+        "Synopsis": "Follow Bunji the green sea turtle.",
+        "Color_description": "Color",
+        "Country": "Australia",
+        "Aspect_ratio": "1.85",
+        "Disc_location": "",
+        "_time_credits": 7,
+        "_media_type": 2,
+        "_video_mode": 37,
+        "_video_color": {
+            "eotf": 3,
+            "space": 4,
+            "depth": 30,
+            "sampling": 3
+        },
+        "_screen_mask": {
+            "image_ratio": 4,
+            "top_trim_rel": 12,
+            "bottom_trim_rel": 12,
+            "conservative_ratio": 4,
+            "top_mask_abs": 32,
+            "bottom_mask_abs": 32
+        },
+        "_screen_mask2": {
+            "top_mask_abs": 32,
+            "bottom_mask_abs": 32,
+            "top_calibrated": 0,
+            "bottom_calibrated": 0
+        }
+    },
+    {
+        "Content_handle": "26-0.0-S_c4458c2f",
+        "Title": "The Lord of the Rings I: The Fellowship of the Ring",
+        "Cover_URL": "http://192.168.0.121/panelcoverart/e1253789a1877d7c/41541335.jpg",
+        "HiRes_cover_URL": "http://192.168.0.121/panelcoverarthr/e1253789a1877d7c/41541335.jpg",
+        "Rating": "PG-13",
+        "Year": "2001",
+        "Running_time": "10",
+        "Actors": "",
+        "Directors": "",
+        "Genres": "Fantasy\rAdventure\rEpic",
+        "Rating_reason": "epic battle sequences",
+        "Synopsis": "A company of heroes forms.",
+        "Color_description": "Color",
+        "Country": "USA",
+        "Aspect_ratio": "2.40",
+        "Disc_location": "",
+        "_time_credits": 7,
+        "_media_type": 2,
+        "_video_mode": 27,
+        "_video_color": {
+            "eotf": 3,
+            "space": 4,
+            "depth": 30,
+            "sampling": 3
+        },
+        "_screen_mask": {
+            "image_ratio": 5,
+            "top_trim_rel": 10,
+            "bottom_trim_rel": 10,
+            "conservative_ratio": 5,
+            "top_mask_abs": 130,
+            "bottom_mask_abs": 130
+        },
+        "_screen_mask2": {
+            "top_mask_abs": 130,
+            "bottom_mask_abs": 130,
+            "top_calibrated": 0,
+            "bottom_calibrated": 0
+        }
+    }
+]

@@ -1,0 +1,2 @@
+exclude tests/emulator_interactive.py
+exclude tests/fixtures

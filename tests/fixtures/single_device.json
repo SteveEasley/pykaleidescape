@@ -1,0 +1,18 @@
+{
+    "devices": {
+        "members": [
+            {
+                "cpdid": "",
+                "serial_number": "00000000123A",
+                "ip_address": "192.168.0.1",
+                "protocol_version": 16,
+                "kos_version": "10.4.2-19218",
+                "movie_zones": 1,
+                "music_zones": 1,
+                "type_name": "Strato S",
+                "friendly_name": "Theater",
+                "cinemascape_mode": 0
+            }
+        ]
+    }
+}
