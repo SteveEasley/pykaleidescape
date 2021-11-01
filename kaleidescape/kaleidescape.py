@@ -159,13 +159,15 @@ class Kaleidescape:
                     assert serial_number != local_device.serial_number
                     self._devices.append(Device(self, f"#{serial_number}"))
                 else:
-                    device = next(iter(
-                        [
-                            d
-                            for d in self._deleted_devices
-                            if d.serial_number == serial_number
-                        ]
-                    ))
+                    device = next(
+                        iter(
+                            [
+                                d
+                                for d in self._deleted_devices
+                                if d.serial_number == serial_number
+                            ]
+                        )
+                    )
                     assert device
                     self._deleted_devices.remove(device)
                     self._devices.append(device)

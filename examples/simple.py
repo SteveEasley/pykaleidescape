@@ -1,15 +1,14 @@
 import asyncio
 
+import logging
 from kaleidescape import Kaleidescape, const
 
-# pylint: disable=all
-# logging.basicConfig(level=logging.DEBUG)
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 async def main():
-    kaleidescape = Kaleidescape(
-        "my-kaleidescape.local"
-    )  # or "my-kaleidescape" on Windows
+    kaleidescape = Kaleidescape("my-kaleidescape.local")
     await kaleidescape.connect(auto_reconnect=True)
     device = await kaleidescape.get_device()
     print(f"Power state is currently: {device.power.state}")

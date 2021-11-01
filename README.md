@@ -1,20 +1,8 @@
 # pykaleidescape
 
----
-
 A python library for controlling Kaleidescape devices via the Kaleidescape System Control Protocol.
 
-## Installation
-
----
-
-```
-pip install pykaleidescape
-```
-
 ## Overview
-
----
 
 **pykaleidescape** is a python `asyncio` library providing access to a Kaleidescape system of one or more devices,
 facilitating the creation of your own controller. Once connected to a device, each device in the system will have a
@@ -37,7 +25,24 @@ pip install pykaleidescape
 
 ## Usage
 
----
+Checkout the [examples](examples) directory for more in depth examples.
+
+```python
+import asyncio
+from kaleidescape import Kaleidescape
+
+async def main():
+    kaleidescape = Kaleidescape('my-kaleidescape.local')  # or "my-kaleidescape" on Windows
+    await kaleidescape.connect(auto_reconnect=True)
+    device = await kaleidescape.get_device()
+    print(f"Power state is currently: {device.power.state}")
+    await kaleidescape.disconnect()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## API
 
 To get started, here is an overview of some of the more important class methods available. As mentioned above
 `pykaleidescape` makes extensive use of `asyncio`, so you are assured it will never block your own controller code.
@@ -152,76 +157,4 @@ def handle(device_id: str, event: str):
     # You might sync your own entity state with this device, which might trigger your integrations.
 
 kaleidescape.dispatcher.connect(const.SIGNAL_DEVICE_EVENT, handle)
-```
-
-
-## Examples
-
----
-
-### Basic
-
-```python
-import logging, asyncio
-from kaleidescape import Kaleidescape, const
-
-
-# logging.basicConfig(level=logging.DEBUG)
-
-async def main():
-    kaleidescape = Kaleidescape('my-kaleidescape.local')  # or "my-kaleidescape" on Windows
-    await kaleidescape.connect(auto_reconnect=True)
-    device = await kaleidescape.get_device()
-    print(f"Power state is currently: {device.power.state}")
-
-    if device.power.state == const.DEVICE_POWER_STATE_STANDBY:
-        await device.leave_standby()
-        print(f"Power state is now: {device.power.state}")
-        await asyncio.sleep(1)
-
-    await device.enter_standby()
-    print(f"Power state is now: {device.power.state}")
-
-    await kaleidescape.disconnect()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### Events
-
-```python
-import asyncio
-from kaleidescape import Kaleidescape, const
-
-
-def controller_event(event: str):
-    print(f"controller_event: {event}")
-
-
-def device_event(device_id: str, event: str):
-    print(f"device_event: {device_id}, {event}")
-
-
-async def main():
-    kaleidescape = Kaleidescape('my-kaleidescape.local')  # or "my-kaleidescape" on Windows
-    kaleidescape.dispatcher.connect(const.SIGNAL_CONTROLLER_EVENT, controller_event)
-    kaleidescape.dispatcher.connect(const.SIGNAL_DEVICE_EVENT, device_event)
-    await kaleidescape.connect()
-
-    device = await kaleidescape.get_device()
-
-    if device.power.state == const.DEVICE_POWER_STATE_STANDBY:
-        await device.leave_standby()
-        await asyncio.sleep(2)
-
-    await device.leave_standby()
-    await asyncio.sleep(2)
-
-    await kaleidescape.disconnect()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
 ```

@@ -6,10 +6,8 @@ import asyncio
 import functools
 import logging
 from collections import defaultdict
-from collections.abc import Awaitable
-from typing import Any, Callable
-
-TargetType = Callable[..., Any]
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 class Signal:
     """Container for a named target function that receives events"""
 
-    def __init__(self, dispatcher: Dispatcher, name: str, target: TargetType):
+    def __init__(self, dispatcher: Dispatcher, name: str, target: Callable):
         """Initialize signal."""
         self.dispatcher = dispatcher
         self.name = name
@@ -37,7 +35,7 @@ class Dispatcher:
         self._loop = asyncio.get_event_loop()
         self._disconnects = []
 
-    def connect(self, name: str, target: TargetType) -> Signal:
+    def connect(self, name: str, target: Callable) -> Signal:
         """Returns a new named signal that runs target function."""
         signal = Signal(self, name, target)
         self._signals[name].append(signal)
@@ -61,7 +59,7 @@ class Dispatcher:
         """Disconnect all signals."""
         self._signals.clear()
 
-    def _call_target(self, target: TargetType, *args) -> Awaitable:
+    def _call_target(self, target: Callable, *args) -> Awaitable:
         check_target = target
         while isinstance(check_target, functools.partial):
             check_target = check_target.func

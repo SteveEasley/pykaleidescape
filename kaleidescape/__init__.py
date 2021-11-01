@@ -6,5 +6,4 @@ from .device import Device
 from .dispatcher import Dispatcher
 from .kaleidescape import Kaleidescape
 
-
 __version__ = "0.1.0"
