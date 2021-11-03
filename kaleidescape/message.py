@@ -948,7 +948,7 @@ class MovieLocation(Response):
 
     name = const.MOVIE_LOCATION
     index = {
-        0: const.MOVIE_LOCATION_MENU,
+        0: const.MOVIE_LOCATION_NONE,
         3: const.MOVIE_LOCATION_CONTENT,
         4: const.MOVIE_LOCATION_INTERMISSION,
         5: const.MOVIE_LOCATION_CREDITS,
@@ -1225,7 +1225,7 @@ class CinemascapeMask(Response):
     @property
     def field(self) -> int:
         """Returns cinemascape mask."""
-        return int(self._fields[0])
+        return self.index[int(self._fields[0])]
 
 
 class EnableEvents(Request):

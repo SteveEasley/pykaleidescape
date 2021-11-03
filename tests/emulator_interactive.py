@@ -160,7 +160,7 @@ class State:
         )
         self._movie_title_name = state["_movie_title_name"] if "_movie_title_name" in state else ""
         self._movie_location = (
-            state["_movie_location"] if "_movie_location" in state else xo(message.MovieLocation.index)["menu"]
+            state["_movie_location"] if "_movie_location" in state else xo(message.MovieLocation.index)["none"]
         )
 
         self.movies: dict[str, dict] = {}
@@ -604,7 +604,7 @@ class State:
         assert self.movie_play_status["mode"] == xo(message.PlayStatus.index)["none"]
         assert self.movie_title_name == ""
         assert self.movie_media_type == xo(message.MovieMediaType.index)["none"]
-        assert self.movie_location == xo(message.MovieLocation.index)["menu"]
+        assert self.movie_location == xo(message.MovieLocation.index)["none"]
         assert self.video_mode == xo(message.VideoMode.index)["none"]
         assert self.video_color["eotf"] == xo(message.VideoColor.index["eotf"])["sdr"]
         assert self.video_color["space"] == xo(message.VideoColor.index["space"])["default"]
@@ -649,7 +649,7 @@ class State:
         assert self.movie_play_status["mode"] == xo(message.PlayStatus.index)["none"]
         assert self.movie_title_name == ""
         assert self.movie_media_type == xo(message.MovieMediaType.index)["none"]
-        assert self.movie_location == xo(message.MovieLocation.index)["menu"]
+        assert self.movie_location == xo(message.MovieLocation.index)["none"]
         assert self.video_mode != xo(message.VideoMode.index)["none"]
         assert self.video_color["eotf"] == xo(message.VideoColor.index["eotf"])["sdr"]
         assert self.video_color["space"] == xo(message.VideoColor.index["space"])["default"]
@@ -868,7 +868,7 @@ class State:
         await self.set_movie_media_type(xo(message.MovieMediaType.index)["none"])
         await self.set_movie_title_name("")
         await self.set_movie_play_status({"mode": xo(message.PlayStatus.index)["paused"]})
-        await self.set_movie_location(xo(message.MovieLocation.index)["menu"])
+        await self.set_movie_location(xo(message.MovieLocation.index)["none"])
         await self.set_movie_play_status(
             {
                 "mode": xo(message.PlayStatus.index)["none"],
