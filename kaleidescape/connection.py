@@ -5,14 +5,19 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import socket
 from typing import TYPE_CHECKING
+
+import dns.asyncresolver
+import dns.exception
 
 from . import const
 from .error import KaleidescapeError, MessageParseError, format_error
 from .message import Response
 
 if TYPE_CHECKING:
+    import dns.resolver
+    from dns.rdtypes.IN.A import A
+
     from .dispatcher import Dispatcher
     from .message import Request
 
@@ -82,14 +87,18 @@ class Connection:
             return
 
         if re.search("^[0-9.]+$", self._host) is None:
+            host = self._host
             try:
-                loop = asyncio.get_running_loop()
-                self._host = await loop.run_in_executor(
-                    None, socket.gethostbyname, self._host  # pylint: disable=no-member
-                )
-                _LOGGER.debug("Resolved %s", self._host)
-            except OSError as err:
-                raise ConnectionError(f"Failed to resolve host {self._host}") from err
+                # Attempt resolving via mDNS
+                self._host = await self._resolve(host, True)
+            except dns.exception.DNSException:
+                try:
+                    # Attempt resolving via DNS
+                    self._host = await self._resolve(host)
+                except dns.exception.DNSException:
+                    raise ConnectionError(f"Failed to resolve host {self._host}")
+
+            _LOGGER.debug("Resolved %s to %s", host, self._host)
 
         # Disable auto_reconnect until a good initial connect
         self._auto_reconnect = False
@@ -101,7 +110,20 @@ class Connection:
 
         _LOGGER.info("Connected to %s", self._host)
 
+    async def _resolve(self, host: str, use_mdns: bool = False) -> str:
+        """Resolve hostname to IP using mDNS."""
+        resolver = dns.asyncresolver.Resolver()
+        if use_mdns:
+            resolver.nameservers = ["224.0.0.251"]
+            resolver.port = 5353
+        resolver.lifetime = min(self._timeout, 5.0)
+        answer: list[A] = await resolver.resolve(host, rdtype="A")
+        if len(answer) == 0:
+            raise RuntimeError("Answer expected")
+        return answer[0].to_text()
+
     async def _connect(self) -> None:
+        """Connect to host device."""
         try:
             connection = asyncio.open_connection(self._host, self._port)
             self._reader, self._writer = await asyncio.wait_for(
@@ -176,7 +198,7 @@ class Connection:
         self._dispatcher.send(SIGNAL_CONNECTION_EVENT, EVENT_CONNECTION_DISCONNECTED)
 
     async def _reconnect(self):
-        """Perform core reconnection logic."""
+        """Reconnect to host device."""
         try:
             while self._state != const.STATE_CONNECTED:
                 try:
@@ -193,7 +215,7 @@ class Connection:
             raise
 
     async def disconnect(self):
-        """Disconnect from the device."""
+        """Disconnect from host device."""
         if self._state == const.STATE_DISCONNECTED:
             return
 
@@ -214,6 +236,7 @@ class Connection:
         self._dispatcher.send(SIGNAL_CONNECTION_EVENT, EVENT_CONNECTION_DISCONNECTED)
 
     async def _disconnect(self):
+        """Disconnect from host device."""
         if self._response_handler_task:
             self._response_handler_task.cancel()
             try:
@@ -231,7 +254,7 @@ class Connection:
         self._pending_requests.clear()
 
     async def send(self, request: Request) -> Response:
-        """Sends request to hardware device."""
+        """Sends request to host device."""
         if self._state != const.STATE_CONNECTED:
             err = "Not connected to device"
             _LOGGER.error(err)

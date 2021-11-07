@@ -1225,7 +1225,7 @@ class CinemascapeMask(Response):
     @property
     def field(self) -> int:
         """Returns cinemascape mask."""
-        return self.index[int(self._fields[0])]
+        return int(self._fields[0])
 
 
 class EnableEvents(Request):

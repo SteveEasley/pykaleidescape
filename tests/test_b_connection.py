@@ -53,15 +53,13 @@ async def test_connect_fails():
 @pytest.mark.asyncio
 async def test_connect_timeout():
     """Test connect fails when host not available."""
-    connection = Connection(Dispatcher(), "www.google.com", timeout=1)
-    with pytest.raises(ConnectionError) as err:
+    connection = Connection(Dispatcher(), "0.0.0.1", timeout=1)
+    with pytest.raises(ConnectionError):
         await connection.connect()
-    assert isinstance(err.value.__cause__, asyncio.TimeoutError)
 
     # Also fails for initial connection even with reconnect.
-    with pytest.raises(ConnectionError) as err:
+    with pytest.raises(ConnectionError):
         await connection.connect(auto_reconnect=True)
-    assert isinstance(err.value.__cause__, asyncio.TimeoutError)
 
 
 @pytest.mark.asyncio
@@ -96,27 +94,22 @@ async def test_event_disconnect(emulator: Emulator, connection: Connection):
 
 @pytest.mark.asyncio
 async def test_connect_resolve_fails(emulator: Emulator):
-    """Test connect fails when host name resolution fails."""
-    with patch("socket.gethostbyname") as mock:
-        mock.side_effect = OSError
-        with pytest.raises(ConnectionError) as err:
-            connection = Connection(Dispatcher(), "google.com", timeout=1)
-            await connection.connect()
-        assert isinstance(err.value, ConnectionError)
-        assert str(err.value) == "Failed to resolve host google.com"
+    """Test connect when host name resolution fails."""
+    with pytest.raises(ConnectionError) as err:
+        connection = Connection(Dispatcher(), "pykaleidescape.local", timeout=1)
+        await connection.connect()
+    assert isinstance(err.value, ConnectionError)
+    assert str(err.value) == "Failed to resolve host pykaleidescape.local"
 
 
 @pytest.mark.asyncio
 async def test_connect_resolve_succeeds(emulator: Emulator):
-    """Test connect fails when host name resolution succeeds."""
-    with patch("socket.gethostbyname") as mock:
-        mock.return_value = "127.0.0.1"
-        dispatcher = Dispatcher()
-        connection = Connection(dispatcher, "google.com", port=10001, timeout=1)
-        signal = connection_signal(dispatcher, EVENT_CONNECTION_CONNECTED)
+    """Test connect when host name resolution succeeds."""
+    with pytest.raises(ConnectionError) as err:
+        connection = Connection(Dispatcher(), "google.com", timeout=1)
         await connection.connect()
-        await signal.wait()
-        assert connection.state == const.STATE_CONNECTED
+    assert isinstance(err.value, ConnectionError)
+    assert str(err.value) == "Command timed out"
 
 
 @pytest.mark.asyncio

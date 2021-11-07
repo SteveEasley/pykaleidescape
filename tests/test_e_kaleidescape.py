@@ -271,9 +271,11 @@ async def test_device_cpdid_changed(emulator: Emulator):
     emulator.register_mock_command(
         ("04", "#00000000123B"),
         messages.GetDeviceInfo.name,
-        (const.SUCCESS, messages.DeviceInfo.name, [
-            "", "00000000123B", "04", "192.168.0.2"
-        ]),
+        (
+            const.SUCCESS,
+            messages.DeviceInfo.name,
+            ["", "00000000123B", "04", "192.168.0.2"],
+        ),
     )
 
     # Sending AvailableDevicesBySerialNumber not AvailableDevices event since
