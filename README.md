@@ -2,6 +2,8 @@
 
 A python library for controlling Kaleidescape devices via the Kaleidescape System Control Protocol.
 
+Note: This library is not owned by, operated by, or affiliated with Kaledescape, Inc. 
+
 ## Overview
 
 **pykaleidescape** is a python `asyncio` library providing access to a Kaleidescape system of one or more devices,
