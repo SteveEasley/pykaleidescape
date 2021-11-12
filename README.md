@@ -2,12 +2,12 @@
 
 A python library for controlling Kaleidescape devices via the Kaleidescape System Control Protocol.
 
-Note: This library is not owned by, operated by, or affiliated with Kaledescape, Inc. 
+Note: This library is not operated by, or affiliated with Kaledescape, Inc. 
 
 ## Overview
 
 **pykaleidescape** is a python `asyncio` library providing access to a Kaleidescape system of one or more devices,
-facilitating the creation of your own controller. Once connected to a device, each device in the system will have a
+facilitating the creation of your own controller. Once connected, each player in the system will have a
 representative `Device` object that mirrors its hardware state, as well as methods for issuing commands. An event
 dispatching system is also available to signal your controller of changes to connection and device state.
 
@@ -16,8 +16,6 @@ The
 is used for communication with hardware devices. It's an important reference while developing your controller code
 utilizing pykaleidescape, specifically the description of the commands and events the protocol exposes. Also, the 
 integration section of that document contains some great ideas for automations.
-
-Note that `pykaleidescape` only supports Strato players at this time. 
 
 ## Installation
 
