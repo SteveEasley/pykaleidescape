@@ -1,9 +1,9 @@
 """Tests for connection module."""
+from unittest.mock import MagicMock, patch
 
-import asyncio
-from unittest.mock import patch
-
+import dns.exception
 import pytest
+from dns.rdtypes.IN.A import A
 
 from kaleidescape import const
 from kaleidescape.connection import (
@@ -21,56 +21,54 @@ from .emulator import Emulator
 
 def test_init():
     """Test init sets properties."""
-    connection = Connection(Dispatcher(), "127.0.0.1")
+    connection = Connection(Dispatcher())
     assert isinstance(connection.dispatcher, Dispatcher)
-    assert connection.host == "127.0.0.1"
+    assert connection.ip_address is None
     assert connection.port == const.DEFAULT_CONNECT_PORT
     assert connection.timeout == const.DEFAULT_CONNECT_TIMEOUT
-    assert connection.state == const.STATE_DISCONNECTED
-
-    connection = Connection(Dispatcher(), "127.0.0.1", port=10001, timeout=1)
-    assert isinstance(connection.dispatcher, Dispatcher)
-    assert connection.host == "127.0.0.1"
-    assert connection.port == 10001
-    assert connection.timeout == 1
     assert connection.state == const.STATE_DISCONNECTED
 
 
 @pytest.mark.asyncio
 async def test_connect_fails():
     """Test connect fails when host not available."""
-    connection = Connection(Dispatcher(), "127.0.0.1", port=10001, timeout=1)
+    connection = Connection(Dispatcher())
     with pytest.raises(ConnectionError) as err:
-        await connection.connect()
+        await connection.connect("127.0.0.1", port=10001, timeout=1)
     assert isinstance(err.value, ConnectionRefusedError)
 
     # Also fails for initial connection even with reconnect.
     with pytest.raises(ConnectionError) as err:
-        await connection.connect(auto_reconnect=True)
+        await connection.connect(
+            "127.0.0.1", port=10001, timeout=1, auto_reconnect=True
+        )
     assert isinstance(err.value, ConnectionRefusedError)
 
 
 @pytest.mark.asyncio
 async def test_connect_timeout():
     """Test connect fails when host not available."""
-    connection = Connection(Dispatcher(), "0.0.0.1", timeout=1)
+    connection = Connection(Dispatcher())
     with pytest.raises(ConnectionError):
-        await connection.connect()
+        await connection.connect("0.0.0.1", timeout=1)
 
     # Also fails for initial connection even with reconnect.
     with pytest.raises(ConnectionError):
-        await connection.connect(auto_reconnect=True)
+        await connection.connect("0.0.0.1", timeout=1, auto_reconnect=True)
 
 
 @pytest.mark.asyncio
 async def test_connect_succeeds(emulator: Emulator):
     """Test connect updates state and emits signal."""
     dispatcher = Dispatcher()
-    connection = Connection(dispatcher, "127.0.0.1", port=10001, timeout=1)
+    connection = Connection(dispatcher)
     assert connection.state == const.STATE_DISCONNECTED
     signal = connection_signal(dispatcher, EVENT_CONNECTION_CONNECTED)
-    await connection.connect()
+    await connection.connect("127.0.0.1", port=10001, timeout=1)
     await signal.wait()
+    assert connection.ip_address == "127.0.0.1"
+    assert connection.port == 10001
+    assert connection.timeout == 1
     assert connection.state == const.STATE_CONNECTED
 
 
@@ -93,36 +91,18 @@ async def test_event_disconnect(emulator: Emulator, connection: Connection):
 
 
 @pytest.mark.asyncio
-async def test_connect_resolve_fails(emulator: Emulator):
-    """Test connect when host name resolution fails."""
-    with pytest.raises(ConnectionError) as err:
-        connection = Connection(Dispatcher(), "pykaleidescape.local", timeout=1)
-        await connection.connect()
-    assert isinstance(err.value, ConnectionError)
-    assert str(err.value) == "Failed to resolve host pykaleidescape.local"
-
-
-@pytest.mark.asyncio
-async def test_connect_resolve_succeeds(emulator: Emulator):
-    """Test connect when host name resolution succeeds."""
-    with pytest.raises(ConnectionError) as err:
-        connection = Connection(Dispatcher(), "google.com", timeout=1)
-        await connection.connect()
-    assert isinstance(err.value, ConnectionError)
-    assert str(err.value) == "Command timed out"
-
-
-@pytest.mark.asyncio
 async def test_reconnect_during_event(emulator: Emulator):
     """Test reconnect while waiting for events/responses."""
     dispatcher = Dispatcher()
-    connection = Connection(dispatcher, "127.0.0.1", port=10001, timeout=1)
+    connection = Connection(dispatcher)
 
     connect_signal = connection_signal(dispatcher, EVENT_CONNECTION_CONNECTED)
     disconnect_signal = connection_signal(dispatcher, EVENT_CONNECTION_DISCONNECTED)
 
     # Assert connection
-    await connection.connect(auto_reconnect=True, reconnect_delay=1)
+    await connection.connect(
+        "127.0.0.1", port=10001, timeout=1, auto_reconnect=True, reconnect_delay=1
+    )
     await connect_signal.wait()
     assert connection.state == const.STATE_CONNECTED
     connect_signal.clear()
@@ -144,13 +124,15 @@ async def test_reconnect_during_event(emulator: Emulator):
 async def test_reconnect_cancelled(emulator):
     """Test reconnect is canceled by calling disconnect."""
     dispatcher = Dispatcher()
-    connection = Connection(dispatcher, "127.0.0.1", port=10001)
+    connection = Connection(dispatcher)
 
     connect_signal = connection_signal(dispatcher, EVENT_CONNECTION_CONNECTED)
     disconnect_signal = connection_signal(dispatcher, EVENT_CONNECTION_DISCONNECTED)
 
     # Assert open and fires connected
-    await connection.connect(auto_reconnect=True, reconnect_delay=0.5)
+    await connection.connect(
+        "127.0.0.1", port=10001, auto_reconnect=True, reconnect_delay=0.5
+    )
     await connect_signal.wait()
     assert connection.state == const.STATE_CONNECTED
 
@@ -161,3 +143,31 @@ async def test_reconnect_cancelled(emulator):
 
     await connection.disconnect()
     assert connection.state == const.STATE_DISCONNECTED
+
+
+@pytest.mark.asyncio
+async def test_resolve_succeeds(emulator: Emulator):
+    """Test resolve when host name resolution succeeds."""
+    with patch("dns.asyncresolver.Resolver.resolve") as mock:
+        mock.return_value = [MagicMock(spec=A)]
+        mock.return_value[0].to_text.side_effect = [
+            "127.0.0.1",  # 1st call: mDSN succeeds
+            dns.exception.DNSException,  # 2nd call: mDSN fails
+            "127.0.0.1"  # 2nd call: DSN succeeds
+        ]
+        # First call simulates mDNS lookup
+        assert await Connection.resolve("my-kaleidescape") == "127.0.0.1"
+        # Second call simulates DNS lookup
+        assert await Connection.resolve("some-kaleidescape") == "127.0.0.1"
+
+
+@pytest.mark.asyncio
+async def test_resolve_fails(emulator: Emulator):
+    """Test resolve when host name resolution fails."""
+    with patch("dns.asyncresolver.Resolver.resolve") as mock:
+        mock.return_value = [MagicMock(spec=A)]
+        mock.return_value[0].to_text.side_effect = dns.exception.DNSException
+        with pytest.raises(ConnectionError) as err:
+            assert await Connection.resolve("my-kaleidescape") == "127.0.0.1"
+        assert isinstance(err.value, ConnectionError)
+        assert str(err.value) == "Failed to resolve host my-kaleidescape"

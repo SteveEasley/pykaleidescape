@@ -28,6 +28,10 @@ class KaleidescapeError(Exception):
     """Kaleidescape errors."""
 
 
+class SystemNotFoundError(Exception):
+    """Error finding system."""
+
+
 class MessageError(KaleidescapeError, RuntimeError):
     """Errors from the Kaleidescape Control Protocol."""
 

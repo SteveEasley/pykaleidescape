@@ -11,6 +11,7 @@ import signal
 import sys
 
 import aioconsole
+from aiohttp import web
 
 from kaleidescape import const, error, message
 from kaleidescape.connection import SEPARATOR
@@ -134,6 +135,7 @@ class State:
 
     def __init__(self, device: Device, state: dict) -> None:
         self._device = device
+        self._is_hds = state["is_hds"]
         self._cpdid = state["cpdid"]
         self._serial_number = state["serial_number"]
         self._ip_address = state["ip_address"]
@@ -142,7 +144,7 @@ class State:
         self._type_name = state["type_name"]
         self._protocol_version = state["protocol_version"]
         self._kos_version = state["kos_version"]
-        self._friendly_name = state["friendly_name"]
+        self._friendly_name = state["friendly_name"] if "friendly_name" in state else ""
         self._cinemascape_mode = state["cinemascape_mode"]
         self._power_state = (
             state["_power_state"]
@@ -237,6 +239,10 @@ class State:
                 await task
 
         asyncio.create_task(work())
+
+    @property
+    def is_hds(self) -> bool:
+        return self._is_hds
 
     @property
     def cpdid(self) -> str:
@@ -1058,6 +1064,11 @@ class Device:
         return SUCCESS, "DEVICE_TYPE_NAME", [fields]
 
     # noinspection PyUnusedLocal
+    async def GET_FRIENDLY_SYSTEM_NAME(self, *args, **kwargs):
+        field = args[0] if len(args) > 0 else self.emulator.friendly_system_name
+        return SUCCESS, "FRIENDLY_NAME", [field]
+
+    # noinspection PyUnusedLocal
     async def GET_FRIENDLY_NAME(self, *args, **kwargs):
         field = args[0] if len(args) > 0 else self.state.get_friendly_name()
         return SUCCESS, "FRIENDLY_NAME", [field]
@@ -1205,20 +1216,25 @@ class Emulator:
         """Initialize the emulator."""
         self._host = host
         self._port = port
+        self._system_id: str = ""
+        self._friendly_system_name: str = ""
         self._devices: list[Device] = []
         self._clients: list[Client] = []
-        self._server: asyncio.base_events.Server | None = None
+        self._control_server: asyncio.base_events.Server | None = None
+        self._web_server: web.ServerRunner | None = None
         self._mock_commands: dict[str, tuple[int, str, list]] = {}
 
         if not os.path.isfile(fixture):
             if os.path.isfile(f"tests/fixtures/{fixture}.json"):
                 fixture = f"tests/fixtures/{fixture}.json"
 
-        device = Device(self)
-
         with open(fixture, encoding="utf8") as file:
             fixture = json.load(file)
 
+        self._system_id = fixture["system_id"]
+        self._friendly_system_name = fixture["friendly_system_name"]
+
+        device = Device(self)
         device.state = State(device, fixture["devices"]["members"][0])
 
         with open("tests/fixtures/movies.json", encoding="utf8") as file:
@@ -1234,25 +1250,42 @@ class Emulator:
 
     async def start(self):
         """Starts the emulator."""
-        if self._server:
+        if self._control_server:
             raise Exception("Already started")
-        self._server = await asyncio.start_server(self._connection_handler, self._host, self._port)
+        self._control_server = await asyncio.start_server(self._connection_handler, self._host, self._port)
+
+        self._web_server = web.ServerRunner(web.Server(self._web_handler))
+        await self._web_server.setup()
+        site = web.TCPSite(self._web_server, 'localhost', 80)
+        await site.start()
+
         _LOGGER.debug("Started")
 
     async def stop(self):
         """Stops the emulator."""
-        if self._server is None:
+        if self._control_server is None:
             return
+        await self._web_server.cleanup()
         for client in self._clients:
             await client.disconnect()
         self._clients.clear()
         self._devices.clear()
-        self._server.close()
-        await self._server.wait_closed()
+        self._control_server.close()
+        await self._control_server.wait_closed()
         # Ensure sleep in self::_connection_handler() finishes
         await asyncio.sleep(0.01)
-        self._server = None
+        self._control_server = None
         _LOGGER.debug("Stopped")
+
+    @property
+    def system_id(self) -> str:
+        """Returns the system id"""
+        return self._system_id
+
+    @property
+    def friendly_system_name(self) -> str:
+        """Returns the friendly system name"""
+        return self._friendly_system_name
 
     @property
     def devices(self) -> list[Device]:
@@ -1267,6 +1300,20 @@ class Emulator:
     def register_mock_command(self, name: str, msg: tuple[int, str, list] | tuple[int, str]):
         """Adds a new simulated command to server. Overrides built in commands."""
         self._mock_commands[name] = msg
+
+    async def _web_handler(self, request) -> web.Response:
+        responses = []
+        for device in self.devices:
+            responses.append("\n".join([
+                device.state.serial_number,
+                device.state.ip_address,
+                self._system_id,
+                "HDS" if device.state.is_hds else "peer",
+                "1.2.3.4-56789",
+                "my-kaleidescape",
+                "---"
+            ]))
+        return web.Response(text="\n".join(responses))
 
     async def _connection_handler(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Main service loop for handling client connections."""

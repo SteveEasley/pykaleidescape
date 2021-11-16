@@ -49,8 +49,8 @@ async def test_command_fails(emulator: Emulator, connection: Connection):
 async def test_commands_fail_when_disconnected(emulator: Emulator):
     """Test calling commands fail when disconnected."""
     dispatcher = Dispatcher()
-    connection = Connection(dispatcher, "127.0.0.1", port=10001, timeout=1)
-    await connection.connect()
+    connection = Connection(dispatcher)
+    await connection.connect("127.0.0.1", port=10001, timeout=1)
     await connection.disconnect()
     assert connection.state == const.STATE_DISCONNECTED
     with pytest.raises(KaleidescapeError) as err:
@@ -63,13 +63,15 @@ async def test_commands_fail_when_disconnected(emulator: Emulator):
 async def test_reconnect_during_command(emulator: Emulator):
     """Test reconnect while waiting for events/responses."""
     dispatcher = Dispatcher()
-    connection = Connection(dispatcher, "127.0.0.1", port=10001, timeout=1)
+    connection = Connection(dispatcher)
 
     connect_signal = connection_signal(dispatcher, EVENT_CONNECTION_CONNECTED)
     disconnect_signal = connection_signal(dispatcher, EVENT_CONNECTION_DISCONNECTED)
 
     # Assert connection
-    await connection.connect(auto_reconnect=True, reconnect_delay=1)
+    await connection.connect(
+        "127.0.0.1", port=10001, timeout=1, auto_reconnect=True, reconnect_delay=1
+    )
     await connect_signal.wait()
     assert connection.state == const.STATE_CONNECTED
     connect_signal.clear()
@@ -171,7 +173,7 @@ async def test_get_device_info1(emulator: Emulator, connection: Connection):
     res = cast(messages.DeviceInfo, (await req.send(connection))[0])
     assert res.field_serial_number == "00000000123A"
     assert res.field_cpdid == ""
-    assert res.field_ip == "192.168.0.1"
+    assert res.field_ip == "127.0.0.1"
 
 
 @pytest.mark.asyncio
@@ -182,19 +184,19 @@ async def test_get_device_info2(emulator: Emulator, connection: Connection):
     res = cast(messages.DeviceInfo, (await req.send(connection))[0])
     assert res.field_serial_number == "00000000123A"
     assert res.field_cpdid == "02"
-    assert res.field_ip == "192.168.0.1"
+    assert res.field_ip == "127.0.0.1"
 
     req = messages.GetDeviceInfo("02")
     res = cast(messages.DeviceInfo, (await req.send(connection))[0])
     assert res.field_serial_number == "00000000123A"
     assert res.field_cpdid == "02"
-    assert res.field_ip == "192.168.0.1"
+    assert res.field_ip == "127.0.0.1"
 
     req = messages.GetDeviceInfo("03")
     res = cast(messages.DeviceInfo, (await req.send(connection))[0])
     assert res.field_serial_number == "00000000123B"
     assert res.field_cpdid == "03"
-    assert res.field_ip == "192.168.0.2"
+    assert res.field_ip == "127.0.0.2"
 
 
 @pytest.mark.asyncio

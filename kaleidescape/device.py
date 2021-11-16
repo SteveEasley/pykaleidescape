@@ -15,7 +15,7 @@ from .error import KaleidescapeError, MessageError
 if TYPE_CHECKING:
     from .connection import Connection
     from .dispatcher import Dispatcher, Signal
-    from .kaleidescape import Kaleidescape
+    from .kaleidescape import Kaleidescape, SystemInfo
     from .message import Request, Response
 
     RequestType = TypeVar("RequestType", bound=Request)
@@ -29,7 +29,10 @@ class Device:
     """
 
     def __init__(
-        self, kaleidescape: Kaleidescape, device_id: str = LOCAL_CPDID
+        self,
+        kaleidescape: Kaleidescape,
+        device_id: str = LOCAL_CPDID,
+        system: SystemInfo = None,
     ) -> None:
         """Initializes device."""
         self._connection = kaleidescape.connection
@@ -37,7 +40,6 @@ class Device:
         self._device_id = device_id
 
         self.system = System()
-        self.capabilities = Capabilities()
         self.power = Power()
         self.osd = OSD()
         self.movie = Movie()
@@ -53,6 +55,10 @@ class Device:
             self.system.serial_number = device_id[1:]
         else:
             raise KaleidescapeError("Invalid device_id: " + device_id)
+
+        if system:
+            self.system.system_id = system.system_id
+            self.system.system_ip_address = system.ip_address
 
         self._signal: Signal | None = None
         self._disabled: bool = True
@@ -111,10 +117,31 @@ class Device:
         return self.system.serial_number
 
     @property
-    def connected(self) -> bool:
+    def is_connected(self) -> bool:
         """Returns current state of the connection."""
         return (
             self._connection.state == const.STATE_CONNECTED and self._disabled is False
+        )
+
+    @property
+    def is_server_only(self) -> bool:
+        """Returns if device has no movie zone (Terra, 1U, 3U, etc)."""
+        return self.system.movie_zones == 0
+
+    @property
+    def is_movie_player(self) -> bool:
+        """Returns if device has a movie zone."""
+        return self.system.movie_zones > 0
+
+    @property
+    def is_music_player(self) -> bool:
+        """Returns if device has a music zone."""
+        return self.system.music_zones - self.system.movie_zones > 0
+
+    def has_device_id(self, device_id: str) -> bool:
+        """Returns if this device has device_id."""
+        return device_id in list(
+            filter(None, [self._device_id, self.cpdid, f"#{self.serial_number}"])
         )
 
     def enable(self) -> None:
@@ -139,12 +166,6 @@ class Device:
             self._signal = None
         self.power.state = const.DEVICE_POWER_STATE_STANDBY
         self.power.readiness = const.SYSTEM_READINESS_STATE_IDLE
-
-    def is_device(self, device_id: str) -> bool:
-        """Returns if this device has the device_id."""
-        return device_id in list(
-            filter(None, [self._device_id, self.cpdid, f"#{self.serial_number}"])
-        )
 
     async def get_available_devices(self) -> list[str]:
         """Returns a list of cpdid's in the system that have cpdid's assigned."""
@@ -192,8 +213,7 @@ class Device:
             await asyncio.gather(
                 self._get_system_version(),
                 self._get_device_type_name(),
-                self._get_friendly_name(),
-                self._get_zone_capabilities(),
+                self._get_friendly_system_name(),
                 self._get_num_zones(),
                 self._get_device_power_state(),
                 self._get_system_readiness_state(),
@@ -202,21 +222,21 @@ class Device:
 
         self._update_system_version(next(result))
         self._update_device_type_name(next(result))
-        self._update_friendly_name(next(result))
-        self._update_zone_capabilities(next(result))
+        self._update_friendly_system_name(next(result))
         self._update_num_zones(next(result))
         self._update_device_power_state(next(result))
         self._update_system_readiness_state(next(result))
+
+        if self.is_movie_player:
+            # Server only devices don's support this call
+            self._update_friendly_name(await self._get_friendly_name())
 
     async def refresh_state(self) -> None:
         """Syncs device state."""
         if self.disabled:
             raise MessageError(const.ERROR_DEVICE_UNAVAILABLE)
 
-        if self.power.state != const.DEVICE_POWER_STATE_ON:
-            return
-
-        if not self.capabilities.movies:
+        if self.is_server_only or self.power.state != const.DEVICE_POWER_STATE_ON:
             return
 
         result = iter(
@@ -263,7 +283,7 @@ class Device:
     def _update_device_info(self, res: messages.DeviceInfo) -> None:
         self.system.serial_number = res.field_serial_number
         self.system.cpdid = res.field_cpdid
-        self.system.ip_address = res.field_ip
+        self.system.device_ip_address = res.field_ip
 
     async def _get_system_version(self) -> messages.SystemVersion:
         """Returns system version."""
@@ -274,25 +294,14 @@ class Device:
         self.system.protocol = res.field_protocol
         self.system.kos = res.field_kos
 
-    async def _get_zone_capabilities(self) -> messages.ZoneCapabilities:
-        """Returns number of zones."""
-        res = await self._send(messages.GetZoneCapabilities)
-        return cast(messages.ZoneCapabilities, res)
-
-    def _update_zone_capabilities(self, res: messages.ZoneCapabilities) -> None:
-        self.capabilities.osd = res.field_osd
-        self.capabilities.movies = res.field_movies
-        self.capabilities.music = res.field_music
-        self.capabilities.store = res.field_store
-
     async def _get_num_zones(self) -> messages.NumZones:
         """Returns number of zones."""
         res = await self._send(messages.GetNumZones)
         return cast(messages.NumZones, res)
 
     def _update_num_zones(self, res: messages.NumZones) -> None:
-        self.capabilities.movie_zones = res.field_movie_zones
-        self.capabilities.music_zones = res.field_music_zones
+        self.system.movie_zones = res.field_movie_zones
+        self.system.music_zones = res.field_music_zones
 
     async def _get_device_type_name(self) -> messages.DeviceTypeName:
         """Returns device type name."""
@@ -321,13 +330,21 @@ class Device:
     ) -> None:
         self.power.readiness = res.field
 
+    async def _get_friendly_system_name(self) -> messages.FriendlySystemName:
+        """Returns friendly system name."""
+        res = await self._send(messages.GetFriendlySystemName)
+        return cast(messages.FriendlySystemName, res)
+
+    def _update_friendly_system_name(self, res: messages.FriendlySystemName) -> None:
+        self.system.system_name = res.field
+
     async def _get_friendly_name(self) -> messages.FriendlyName:
         """Returns friendly name."""
         res = await self._send(messages.GetFriendlyName)
         return cast(messages.FriendlyName, res)
 
     def _update_friendly_name(self, res: messages.FriendlyName) -> None:
-        self.system.name = res.field
+        self.system.player_name = res.field
 
     async def _get_ui_state(self) -> messages.UiState:
         """Returns ui state."""
@@ -506,7 +523,7 @@ class Device:
         response: Response = args[0]
 
         # Ignore events not addressed to this device
-        if self.is_device(response.device_id) is False:
+        if self.has_device_id(response.device_id) is False:
             return
 
         # System
@@ -573,23 +590,16 @@ class Device:
 class System:
     """System related properties."""
 
+    system_id: str = ""
+    system_name: str = ""
+    system_ip_address: str = ""
+    device_ip_address: str = ""
+    serial_number: str = ""
+    cpdid: str = ""
     type: str = ""
     protocol: int = 0
     kos: str = ""
-    name: str = ""
-    cpdid: str = ""
-    serial_number: str = ""
-    ip_address: str = ""
-
-
-@dataclass
-class Capabilities:
-    """Capability related properties."""
-
-    osd: bool = False
-    movies: bool = False
-    music: bool = False
-    store: bool = False
+    player_name: str = ""
     movie_zones: int = 0
     music_zones: int = 0
 

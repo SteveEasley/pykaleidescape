@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from aiohttp import web
+
 from kaleidescape import const, error
 from kaleidescape import message as messages
 from kaleidescape.connection import SEPARATOR
@@ -121,7 +123,8 @@ class Emulator:
         self._host = host
         self._port = port
         self._clients: list[Client] = []
-        self._server: asyncio.base_events.Server | None = None
+        self._control_server: asyncio.base_events.Server | None = None
+        self._web_server: web.ServerRunner | None = None
         self._mock_commands: dict[str, dict] = {}
 
         if fixture == "single_device":
@@ -138,7 +141,7 @@ class Emulator:
             self.register_mock_command(
                 ("01", "#00000000123A"),
                 messages.GetDeviceInfo.name,
-                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123A", "00", "192.168.0.1"]),
+                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123A", "00", "127.0.0.1"]),
             )
             self.register_mock_command(
                 ("01", "#00000000123A"),
@@ -194,12 +197,12 @@ class Emulator:
             self.register_mock_command(
                 ("01", "#00000000123A"),
                 messages.GetDeviceInfo.name,
-                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123A", "00", "192.168.0.1"]),
+                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123A", "00", "127.0.0.1"]),
             )
             self.register_mock_command(
                 ("#00000000123B",),
                 messages.GetDeviceInfo.name,
-                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123B", "00", "192.168.0.2"]),
+                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123B", "00", "127.0.0.2"]),
             )
             self.register_mock_command(
                 ("01", "#00000000123A", "#00000000123B"),
@@ -251,12 +254,12 @@ class Emulator:
             self.register_mock_command(
                 ("01", "02", "#00000000123A"),
                 messages.GetDeviceInfo.name,
-                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123A", "02", "192.168.0.1"]),
+                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123A", "02", "127.0.0.1"]),
             )
             self.register_mock_command(
                 ("03", "#00000000123B"),
                 messages.GetDeviceInfo.name,
-                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123B", "03", "192.168.0.2"]),
+                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123B", "03", "127.0.0.2"]),
             )
             self.register_mock_command(
                 ("01", "02", "#00000000123A", "03", "#00000000123B"),
@@ -297,6 +300,11 @@ class Emulator:
         else:
             raise Exception(f"Undefined fixture: {fixture}")
 
+        self.register_mock_command(
+            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            messages.GetFriendlySystemName.name,
+            (SUCCESS, messages.FriendlySystemName.name, ["Home Cinema"]),
+        )
         self.register_mock_command(
             ("01", "02", "#00000000123A", "03", "#00000000123B"),
             messages.GetZoneCapabilities.name,
@@ -389,24 +397,30 @@ class Emulator:
             (SUCCESS,),
         )
 
-
     async def start(self):
         """Starts the emulator."""
-        if self._server:
+        if self._control_server:
             raise Exception("Already started")
-        self._server = await asyncio.start_server(self._connection_handler, self._host, self._port)
+        self._control_server = await asyncio.start_server(self._connection_handler, self._host, self._port)
+
+        self._web_server = web.ServerRunner(web.Server(self._web_handler))
+        await self._web_server.setup()
+        site = web.TCPSite(self._web_server, 'localhost', 10080)
+        await site.start()
+
         _LOGGER.debug("Started")
 
     async def stop(self):
         """Stops the emulator."""
-        if self._server is None:
+        if self._control_server is None:
             return
+        await self._web_server.cleanup()
         for client in self._clients:
             await client.disconnect()
         self._clients.clear()
-        self._server.close()
-        await self._server.wait_closed()
-        self._server = None
+        self._control_server.close()
+        await self._control_server.wait_closed()
+        self._control_server = None
         await asyncio.sleep(0.01)
         _LOGGER.debug("Stopped")
 
@@ -429,6 +443,17 @@ class Emulator:
         """Removes all simulated commands for device_id."""
         for device_id in device_ids:
             del self._mock_commands[device_id]
+
+    async def _web_handler(self, request) -> web.Response:
+        return web.Response(text="\n".join([
+            "00000000123A",
+            self._host,
+            "12345678901234567890",
+            "HDS",
+            "10.11.0-22557",
+            "my-kaleidescape",
+            "---"
+        ]))
 
     async def _connection_handler(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Main service loop for handling client connections."""

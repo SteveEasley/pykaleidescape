@@ -5,11 +5,14 @@ from kaleidescape import Kaleidescape
 
 logging.basicConfig(level=logging.DEBUG)
 
+# pylint: disable=all
+
 
 async def main():
-    kaleidescape = Kaleidescape('my-kaleidescape.local')  # or "my-kaleidescape" on Windows
-    await kaleidescape.connect(auto_reconnect=True)
-    device = await kaleidescape.get_device()
+    # Use "my-kaleidescape" on Windows
+    kaleidescape = Kaleidescape("my-kaleidescape.local")
+    await kaleidescape.connect()
+    device = await kaleidescape.get_local_device()
     print(f"Power state is currently: {device.power.state}")
     await kaleidescape.disconnect()
 

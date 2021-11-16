@@ -25,7 +25,7 @@ async def test_init(emulator: Emulator, kaleidescape: Kaleidescape):
     assert isinstance(device.connection, Connection)
     assert isinstance(device.dispatcher, Dispatcher)
     assert device.disabled is False
-    assert device.connected is True
+    assert device.is_connected is True
     assert device.is_local is True
     assert device.cpdid == ""
     assert device.serial_number == ""
@@ -107,19 +107,18 @@ async def test_refresh_device1(emulator: Emulator, kaleidescape: Kaleidescape):
     assert device.serial_number == "00000000123A"
     assert device.system.cpdid == ""
     assert device.cpdid == ""
-    assert device.system.ip_address == "192.168.0.1"
+    assert device.system.device_ip_address == "127.0.0.1"
     assert device.system.protocol == 16
     assert device.system.kos == "10.4.2-19218"
     assert device.system.type == "Strato S"
-    assert device.system.name == "Theater"
-    assert device.capabilities.osd is True
-    assert device.capabilities.movies is True
-    assert device.capabilities.music is False
-    assert device.capabilities.store is True
-    assert device.capabilities.movie_zones == 1
-    assert device.capabilities.music_zones == 1
+    assert device.system.system_name == "Home Cinema"
+    assert device.system.player_name == "Theater"
+    assert device.system.movie_zones == 1
+    assert device.system.music_zones == 1
     assert device.power.state == const.DEVICE_POWER_STATE_STANDBY
     assert device.power.readiness == const.SYSTEM_READINESS_STATE_IDLE
+    assert device.is_server_only is False
+    assert device.is_movie_player is True
 
 
 @pytest.mark.asyncio
@@ -133,19 +132,18 @@ async def test_refresh_device2(emulator: Emulator, kaleidescape: Kaleidescape):
     assert device3a.serial_number == "00000000123A"
     assert device3a.system.cpdid == ""
     assert device3a.cpdid == ""
-    assert device3a.system.ip_address == "192.168.0.1"
+    assert device3a.system.device_ip_address == "127.0.0.1"
     assert device3a.system.protocol == 16
     assert device3a.system.kos == "10.4.2-19218"
     assert device3a.system.type == "Strato S"
-    assert device3a.system.name == "Theater"
-    assert device3a.capabilities.osd is True
-    assert device3a.capabilities.movies is True
-    assert device3a.capabilities.music is False
-    assert device3a.capabilities.store is True
-    assert device3a.capabilities.movie_zones == 1
-    assert device3a.capabilities.music_zones == 1
+    assert device3a.system.system_name == "Home Cinema"
+    assert device3a.system.player_name == "Theater"
+    assert device3a.system.movie_zones == 1
+    assert device3a.system.music_zones == 1
     assert device3a.power.state == const.DEVICE_POWER_STATE_STANDBY
     assert device3a.power.readiness == const.SYSTEM_READINESS_STATE_IDLE
+    assert device3a.is_server_only is False
+    assert device3a.is_movie_player is True
 
     device3b = Device(kaleidescape, "#00000000123B")
     await device3b.refresh_device()
@@ -154,19 +152,18 @@ async def test_refresh_device2(emulator: Emulator, kaleidescape: Kaleidescape):
     assert device3b.serial_number == "00000000123B"
     assert device3b.system.cpdid == ""
     assert device3b.cpdid == ""
-    assert device3b.system.ip_address == "192.168.0.2"
+    assert device3b.system.device_ip_address == "127.0.0.2"
     assert device3b.system.protocol == 16
     assert device3b.system.kos == "10.4.2-19218"
     assert device3b.system.type == "Strato S"
-    assert device3b.system.name == "Media Room"
-    assert device3b.capabilities.osd is True
-    assert device3b.capabilities.movies is True
-    assert device3b.capabilities.music is False
-    assert device3b.capabilities.store is True
-    assert device3b.capabilities.movie_zones == 1
-    assert device3b.capabilities.music_zones == 1
+    assert device3b.system.system_name == "Home Cinema"
+    assert device3b.system.player_name == "Media Room"
+    assert device3b.system.movie_zones == 1
+    assert device3b.system.music_zones == 1
     assert device3b.power.state == const.DEVICE_POWER_STATE_STANDBY
     assert device3b.power.readiness == const.SYSTEM_READINESS_STATE_IDLE
+    assert device3b.is_server_only is False
+    assert device3b.is_movie_player is True
 
 
 @pytest.mark.asyncio
@@ -180,7 +177,7 @@ async def test_refresh_device3(emulator: Emulator, kaleidescape: Kaleidescape):
     assert device02.serial_number == "00000000123A"
     assert device02.system.cpdid == "02"
     assert device02.cpdid == "02"
-    assert device02.system.ip_address == "192.168.0.1"
+    assert device02.system.device_ip_address == "127.0.0.1"
 
     device03 = Device(kaleidescape, "#00000000123B")
     await device03.refresh_device()
@@ -189,7 +186,27 @@ async def test_refresh_device3(emulator: Emulator, kaleidescape: Kaleidescape):
     assert device03.serial_number == "00000000123B"
     assert device03.system.cpdid == "03"
     assert device03.cpdid == "03"
-    assert device03.system.ip_address == "192.168.0.2"
+    assert device03.system.device_ip_address == "127.0.0.2"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("emulator", ["multi_device"], indirect=True)
+async def test_server_only_device(emulator: Emulator, kaleidescape: Kaleidescape):
+    """Test get available devices with multi devices."""
+    emulator.register_mock_command(
+        ("01", "02", "#00000000123A"),
+        messages.GetNumZones.name,
+        (const.SUCCESS, messages.NumZones.name, ["00", "00"]),
+    )
+    device3a = Device(kaleidescape)
+    await device3a.refresh_device()
+    assert device3a.is_server_only is True
+    assert device3a.is_movie_player is False
+
+    device3b = Device(kaleidescape, "#00000000123B")
+    await device3b.refresh_device()
+    assert device3b.is_server_only is False
+    assert device3b.is_movie_player is True
 
 
 @pytest.mark.asyncio

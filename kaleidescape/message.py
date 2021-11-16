@@ -476,22 +476,22 @@ class ZoneCapabilities(Response):
 
     @property
     def field_osd(self) -> bool:
-        """Returns friendly name."""
+        """Returns whether zone has osd."""
         return self._fields[0] == "Y"
 
     @property
     def field_movies(self) -> bool:
-        """Returns friendly name."""
+        """Returns whether has movie zones."""
         return self._fields[1] == "Y"
 
     @property
     def field_music(self) -> bool:
-        """Returns friendly name."""
+        """Returns whether has music zones."""
         return self._fields[2] == "Y"
 
     @property
     def field_store(self) -> bool:
-        """Returns friendly name."""
+        """Returns whether has store."""
         return self._fields[3] == "Y"
 
 
@@ -650,6 +650,24 @@ class PlayStatus(Response):
     def field_chapter_location(self) -> int:
         """Returns chapter location."""
         return int(self._fields[7])
+
+
+class GetFriendlySystemName(Request):
+    """Class for GET_FRIENDLY_SYSTEM_NAME messages."""
+
+    name = f"GET_{const.FRIENDLY_SYSTEM_NAME}"
+
+
+@register
+class FriendlySystemName(Response):
+    """Class for FRIENDLY_SYSTEM_NAME messages."""
+
+    name = const.FRIENDLY_SYSTEM_NAME
+
+    @property
+    def field(self) -> str:
+        """Returns friendly system name."""
+        return self._fields[0]
 
 
 class GetFriendlyName(Request):

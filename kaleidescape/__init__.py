@@ -4,6 +4,6 @@ Control Protocol."""
 from . import const
 from .device import Device
 from .dispatcher import Dispatcher
-from .kaleidescape import Kaleidescape
+from .kaleidescape import Kaleidescape, SystemInfo
 
-__version__ = "2021.11.0"
+__version__ = "2021.11.1"

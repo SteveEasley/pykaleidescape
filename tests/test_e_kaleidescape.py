@@ -22,10 +22,8 @@ def test_init():
     kaleidescape = Kaleidescape("127.0.0.1", port=10001)
     assert isinstance(kaleidescape.dispatcher, Dispatcher)
     assert isinstance(kaleidescape.connection, Connection)
-    assert kaleidescape.connected is False
-    assert kaleidescape.reconnecting is False
-    assert kaleidescape.connection.host == "127.0.0.1"
-    assert kaleidescape.connection.port == 10001
+    assert kaleidescape.is_connected is False
+    assert kaleidescape.is_reconnecting is False
 
 
 @pytest.mark.asyncio
@@ -39,11 +37,11 @@ async def test_connect(emulator: Emulator):
         kaleidescape.dispatcher, const.EVENT_CONTROLLER_DISCONNECTED
     )
 
-    assert kaleidescape.connected is False
-    await kaleidescape.connect()
+    assert kaleidescape.is_connected is False
+    await kaleidescape.connect(discovery_port=10080)
     await asyncio.wait_for(connected_signal.wait(), 0.5)
-    assert kaleidescape.connected is True
-    assert kaleidescape.reconnecting is False
+    assert kaleidescape.is_connected is True
+    assert kaleidescape.is_reconnecting is False
     assert kaleidescape.connection.timeout == const.DEFAULT_CONNECT_TIMEOUT
     assert kaleidescape.connection._reconnect_delay == const.DEFAULT_RECONNECT_DELAY
     assert kaleidescape.connection._auto_reconnect is False
@@ -60,13 +58,15 @@ async def test_connect(emulator: Emulator):
         kaleidescape.dispatcher, const.EVENT_CONTROLLER_DISCONNECTED
     )
 
-    assert kaleidescape.connected is False
+    assert kaleidescape.is_connected is False
     await kaleidescape.connect(
-        auto_reconnect=True, reconnect_delay=const.DEFAULT_RECONNECT_DELAY + 1
+        auto_reconnect=True,
+        reconnect_delay=const.DEFAULT_RECONNECT_DELAY + 1,
+        discovery_port=10080
     )
     await asyncio.wait_for(connected_signal.wait(), 0.5)
-    assert kaleidescape.connected is True
-    assert kaleidescape.reconnecting is False
+    assert kaleidescape.is_connected is True
+    assert kaleidescape.is_reconnecting is False
     assert kaleidescape.connection._timeout == const.DEFAULT_CONNECT_TIMEOUT + 1
     assert kaleidescape.connection._reconnect_delay == const.DEFAULT_RECONNECT_DELAY + 1
     assert kaleidescape.connection._auto_reconnect is True
@@ -78,22 +78,36 @@ async def test_connect(emulator: Emulator):
 async def test_disconnect(emulator: Emulator):
     """Test disconnecting from hardware."""
     kaleidescape = Kaleidescape("127.0.0.1", port=10001)
-    assert kaleidescape.connected is False
-    await kaleidescape.connect()
-    assert kaleidescape.connected is True
+    assert kaleidescape.is_connected is False
+    await kaleidescape.connect(discovery_port=10080)
+    assert kaleidescape.is_connected is True
     await kaleidescape.disconnect()
-    assert kaleidescape.connected is False
+    assert kaleidescape.is_connected is False
+
+
+@pytest.mark.asyncio
+async def test_connect_by_system_id(emulator: Emulator):
+    """Test connecting with a system id."""
+    kaleidescape = Kaleidescape("127.0.0.1", port=10001)
+    await kaleidescape.discover(port=10080)
+    system = next(iter(kaleidescape.systems.values()))
+    await kaleidescape.connect(system.system_id, discovery_port=10080)
+    device = await kaleidescape.get_local_device()
+    assert isinstance(device, Device)
+    assert device.is_local
+    assert device.is_connected
+    assert len(await kaleidescape.get_devices()) == 1
 
 
 @pytest.mark.asyncio
 async def test_get_device(emulator: Emulator):
     """Test getting local device after connect."""
     kaleidescape = Kaleidescape("127.0.0.1", port=10001)
-    await kaleidescape.connect()
-    device = await kaleidescape.get_device()
+    await kaleidescape.connect(discovery_port=10080)
+    device = await kaleidescape.get_local_device()
     assert isinstance(device, Device)
     assert device.is_local
-    assert device.connected
+    assert device.is_connected
     assert len(await kaleidescape.get_devices()) == 1
 
 
@@ -102,11 +116,11 @@ async def test_get_device(emulator: Emulator):
 async def test_get_devices(emulator: Emulator):
     """Test getting local devices after connect."""
     kaleidescape = Kaleidescape("127.0.0.1", port=10001)
-    await kaleidescape.connect()
+    await kaleidescape.connect(discovery_port=10080)
     devices = await kaleidescape.get_devices()
     assert isinstance(devices, list)
     assert len(await kaleidescape.get_devices()) == 2
-    assert devices[0].connected and devices[1].connected
+    assert devices[0].is_connected and devices[1].is_connected
 
 
 @pytest.mark.asyncio
@@ -131,7 +145,7 @@ async def test_device_added(emulator: Emulator):
     )
 
     kaleidescape = Kaleidescape("127.0.0.1", port=10001)
-    await kaleidescape.connect()
+    await kaleidescape.connect(discovery_port=10080)
 
     # Assert there is only one device in the system
     devices = await kaleidescape.get_devices()
@@ -175,7 +189,7 @@ async def test_device_added(emulator: Emulator):
 async def test_device_removed_and_readded(emulator: Emulator):
     """Test removing a device works."""
     kaleidescape = Kaleidescape("127.0.0.1", port=10001)
-    await kaleidescape.connect()
+    await kaleidescape.connect(discovery_port=10080)
 
     # Assert there are two devices in system
     devices = await kaleidescape.get_devices()
@@ -254,7 +268,7 @@ async def test_device_removed_and_readded(emulator: Emulator):
 async def test_device_cpdid_changed(emulator: Emulator):
     """Test changing a cpdid works."""
     kaleidescape = Kaleidescape("127.0.0.1", port=10001)
-    await kaleidescape.connect()
+    await kaleidescape.connect(discovery_port=10080)
 
     # Assert there are two devices in system
     devices = await kaleidescape.get_devices()
@@ -274,7 +288,7 @@ async def test_device_cpdid_changed(emulator: Emulator):
         (
             const.SUCCESS,
             messages.DeviceInfo.name,
-            ["", "00000000123B", "04", "192.168.0.2"],
+            ["", "00000000123B", "04", "127.0.0.2"],
         ),
     )
 

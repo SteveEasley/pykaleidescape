@@ -31,12 +31,15 @@ Checkout the [examples](examples) directory for more in depth examples.
 import asyncio
 from kaleidescape import Kaleidescape
 
+
 async def main():
-    kaleidescape = Kaleidescape('my-kaleidescape.local')  # or "my-kaleidescape" on Windows
-    await kaleidescape.connect(auto_reconnect=True)
-    device = await kaleidescape.get_device()
+    # Use "my-kaleidescape" on Windows
+    kaleidescape = Kaleidescape("my-kaleidescape.local")
+    await kaleidescape.connect()
+    device = await kaleidescape.get_local_device()
     print(f"Power state is currently: {device.power.state}")
     await kaleidescape.disconnect()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -52,7 +55,8 @@ To get started, here is an overview of some of the more important class methods 
 Your controller code should start by instantiating a new `Kaleidescape` object.
 
 ```python
-kaleidescape = Kaleidescape('my-kaleidescape.local')  # or "my-kaleidescape" on Windows
+# Use "my-kaleidescape" on Windows
+kaleidescape = Kaleidescape("my-kaleidescape.local")
 ```
 
 As shown, you will need to provide a hostname to connect to, which should be the same hostname used to configure the
@@ -76,13 +80,13 @@ await kaleidescape.disconnect()
 
 ### Devices
 
-Once connected, you can get a handle to the **local device**, or all devices, with the `Kaleidescape::get_device()`
+Once connected, you can get a handle to the **local device**, or all devices, with the `Kaleidescape::get_local_device()`
 and `Kaleidescape::get_devices()` methods. These return a `Device` object (or a list) which provides a representation
 of the state of the Kaleidescape device. The **local device** is always the first Device in the list that
 `Kaleidescape::get_devices()` returns.
 
 ```python
-device = await kaleidescape.get_device()
+device = await kaleidescape.get_local_device()
 devices = await kaleidescape.get_devices()
 ```
 

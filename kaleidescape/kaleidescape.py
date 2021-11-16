@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+import aiohttp
+import aiohttp.client_exceptions
 
 from . import const
 from . import message as messages
@@ -17,10 +22,12 @@ from .connection import (
 from .const import LOCAL_CPDID
 from .device import Device
 from .dispatcher import Dispatcher
-from .error import KaleidescapeError
+from .error import KaleidescapeError, SystemNotFoundError
 
 if TYPE_CHECKING:
     from .dispatcher import Signal
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Kaleidescape:
@@ -34,10 +41,14 @@ class Kaleidescape:
         timeout: float = const.DEFAULT_CONNECT_TIMEOUT,
     ) -> None:
         """Initialize the controller."""
+        self._host = host
+        self._port = port
+        self._timeout = timeout
+
         self._dispatcher = Dispatcher()
-        self._connection = Connection(
-            self._dispatcher, host, port=port, timeout=timeout
-        )
+        self._connection = Connection(self._dispatcher)
+        self._systems: dict[str, SystemInfo] | None = None
+        self._system: SystemInfo | None = None
         self._devices: list[Device] | None = None
         self._deleted_devices: list[Device] = []
         self._devices_loaded: bool = False
@@ -45,24 +56,112 @@ class Kaleidescape:
 
     async def connect(
         self,
+        system_id: str | None = None,
+        *,
         auto_reconnect: bool = False,
         reconnect_delay: float = const.DEFAULT_RECONNECT_DELAY,
+        discovery_port: int = const.DEFAULT_DISCOVERY_PORT,
     ) -> None:
-        """Connect to hardware."""
-        if self.connected:
+        """Connect to local device.
+
+        The system_id is only needed in complex setups with multiple systems on the
+        same network. Single systems of one or more devices can omit the param.
+        """
+        if self.is_connected:
             return
+
+        await self.discover(port=discovery_port)
+
+        assert self._systems is not None
+        assert self._system is not None
+
+        if system_id is not None:
+            if system_id not in self._systems:
+                raise SystemNotFoundError(
+                    f"System id not found on network: {system_id}"
+                )
+            self._system = self._systems[system_id]
 
         self._signals = [
             self.dispatcher.connect(SIGNAL_CONNECTION_EVENT, self._handle_event)
         ]
 
         await self._connection.connect(
-            auto_reconnect=auto_reconnect, reconnect_delay=reconnect_delay
+            self._system.ip_address,
+            port=self._port,
+            timeout=self._timeout,
+            auto_reconnect=auto_reconnect,
+            reconnect_delay=reconnect_delay,
         )
+
+        _LOGGER.debug(
+            "Connected to system %s with local device %s",
+            self._system.system_id,
+            self._system.ip_address,
+        )
+
+    async def discover(
+        self, *, port: int = const.DEFAULT_DISCOVERY_PORT
+    ) -> dict[str, SystemInfo]:
+        """Discover all systems on local network."""
+        self._systems = {}
+
+        ip_address = await Connection.resolve(self._host)
+        url = f"http://{ip_address}:{port}/webservices/server_list.dat?version=3"
+        timeout = aiohttp.ClientTimeout(total=self._connection.timeout)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            try:
+                err_msg = f"Failed to discover any systems on network via {ip_address}:"
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        raise ConnectionError(f"{err_msg}: code {response.status}")
+                    data = await response.text()
+            except asyncio.exceptions.TimeoutError as err:
+                _LOGGER.error(f"{err_msg}: {err}")
+                raise ConnectionError(f"{err_msg}: timeout") from err
+            except aiohttp.client_exceptions.ClientConnectorError as err:
+                _LOGGER.error(f"{err_msg}: {err}")
+                raise ConnectionError(f"{err_msg}: {err}") from err
+
+        servers = [v.strip().splitlines() for v in data.strip("\n\r-").split("---")]
+
+        if len(servers) == 0:
+            raise KaleidescapeError("Failed to load discovery data")
+
+        system_id: str | None = None
+
+        for server in servers:
+            server = list(filter(None, [v.strip() for v in server]))
+            if not isinstance(server, list) or len(server) < 5 or len(server) > 6:
+                raise KaleidescapeError("Failed to parse discovery data")
+
+            system = SystemInfo(
+                system_id=server[2],
+                serial_number=server[0],
+                ip_address=server[1],
+                is_hds=(server[3].lower() == "hds"),
+            )
+
+            if server[1] == ip_address:
+                system_id = system.system_id
+
+            if system.is_hds or system.system_id not in self._systems:
+                self._systems[system.system_id] = system
+
+        _LOGGER.debug(
+            "Discovered %d system%s on network: %s",
+            len(self._systems.keys()),
+            "" if len(self._systems.keys()) == 1 else "s",
+            self._systems.values(),
+        )
+
+        assert system_id is not None and system_id in self._systems
+        self._system = self._systems[system_id]
+        return self._systems
 
     async def disconnect(self) -> None:
         """Disconnect from hardware."""
-        if not self.connected:
+        if not self.is_connected:
             return
 
         await self._connection.disconnect()
@@ -73,7 +172,7 @@ class Kaleidescape:
         finally:
             self._signals.clear()
 
-    async def get_device(self) -> Device:
+    async def get_local_device(self) -> Device:
         """Returns locally connected device."""
         if self._devices is None:
             await self.get_devices()
@@ -89,8 +188,11 @@ class Kaleidescape:
 
     async def get_devices(self) -> list[Device]:
         """Returns a list of all devices in system."""
+        if not self.is_connected:
+            raise KaleidescapeError("Connect not called yet")
+
         if self._devices is None:
-            self._devices = [Device(self, LOCAL_CPDID)]
+            self._devices = [Device(self, LOCAL_CPDID, self._system)]
             await self._refresh_devices()
             self._devices_loaded = True
 
@@ -157,7 +259,9 @@ class Kaleidescape:
             if serial_number not in serial_numbers:
                 if serial_number not in deleted_serial_numbers:
                     assert serial_number != local_device.serial_number
-                    self._devices.append(Device(self, f"#{serial_number}"))
+                    self._devices.append(
+                        Device(self, f"#{serial_number}", self._system)
+                    )
                 else:
                     device = next(
                         iter(
@@ -182,6 +286,13 @@ class Kaleidescape:
         )
 
     @property
+    def systems(self) -> dict[str, SystemInfo] | None:
+        """Returns map of systems on network."""
+        if self._systems is None:
+            raise KaleidescapeError("Discovery not called yet")
+        return self._systems
+
+    @property
     def dispatcher(self) -> Dispatcher:
         """Returns dispatcher instance."""
         return self._dispatcher
@@ -192,11 +303,21 @@ class Kaleidescape:
         return self._connection
 
     @property
-    def connected(self) -> bool:
+    def is_connected(self) -> bool:
         """Returns whether connection is currently connected."""
         return self._connection.state == const.STATE_CONNECTED
 
     @property
-    def reconnecting(self) -> bool:
+    def is_reconnecting(self) -> bool:
         """Returns whether connection is currently reconnecting."""
         return self._connection.state == const.STATE_RECONNECTING
+
+
+@dataclass
+class SystemInfo:
+    """System on network."""
+
+    system_id: str = ""
+    serial_number: str = ""
+    ip_address: str = ""
+    is_hds: bool = False

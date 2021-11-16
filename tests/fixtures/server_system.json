@@ -1,13 +1,25 @@
 {
-    "system_id": "12345678901234567890",
-    "friendly_system_name": "Mock Home Cinema",
+    "system_id": "12345678901234567891",
+    "friendly_system_name": "Terra System",
     "devices": {
         "members": [
             {
                 "is_hds": true,
                 "cpdid": "",
-                "serial_number": "00000000123A",
+                "serial_number": "00000001123A",
                 "ip_address": "127.0.0.1",
+                "protocol_version": 16,
+                "kos_version": "10.4.2-19218",
+                "movie_zones": 0,
+                "music_zones": 0,
+                "type_name": "Terra",
+                "cinemascape_mode": 0
+            },
+            {
+                "is_hds": false,
+                "cpdid": "",
+                "serial_number": "00000001123B",
+                "ip_address": "127.0.0.2",
                 "protocol_version": 16,
                 "kos_version": "10.4.2-19218",
                 "movie_zones": 1,
@@ -19,13 +31,13 @@
             {
                 "is_hds": false,
                 "cpdid": "",
-                "serial_number": "00000000123B",
-                "ip_address": "127.0.0.2",
+                "serial_number": "00000001123C",
+                "ip_address": "127.0.0.3",
                 "protocol_version": 16,
                 "kos_version": "10.4.2-19218",
                 "movie_zones": 1,
                 "music_zones": 1,
-                "type_name": "Strato S",
+                "type_name": "Strato C",
                 "friendly_name": "Mock Media Room",
                 "cinemascape_mode": 0
             }

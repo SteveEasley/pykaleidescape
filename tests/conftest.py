@@ -23,8 +23,10 @@ def fixture_emulator(event_loop, request):
 @pytest.fixture(name="connection")
 def fixture_connection(event_loop):
     """Fixture for creating a connection to device."""
-    connection = Connection(Dispatcher(), "127.0.0.1", port=10001, timeout=1)
-    event_loop.run_until_complete(connection.connect())
+    connection = Connection(Dispatcher())
+    event_loop.run_until_complete(
+        connection.connect("127.0.0.1", port=10001, timeout=1)
+    )
     yield connection
     # Ensure work emulator loop can complete tasks
     event_loop.run_until_complete(asyncio.sleep(0.01))
@@ -35,6 +37,6 @@ def fixture_connection(event_loop):
 def fixture_kaleidescape(event_loop):
     """Fixture for creating a controller."""
     kaleidescape = Kaleidescape("127.0.0.1", port=10001, timeout=1)
-    event_loop.run_until_complete(kaleidescape.connect())
+    event_loop.run_until_complete(kaleidescape.connect(discovery_port=10080))
     yield kaleidescape
     event_loop.run_until_complete(kaleidescape.disconnect())

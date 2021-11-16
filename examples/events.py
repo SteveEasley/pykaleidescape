@@ -1,6 +1,9 @@
 import asyncio
 
+import logging
 from kaleidescape import Kaleidescape, const
+
+# logging.basicConfig(level=logging.DEBUG)
 
 # pylint: disable=all
 
@@ -14,12 +17,13 @@ async def device_event(device_id: str, event: str):
 
 
 async def main():
+    # Use "my-kaleidescape" on Windows
     kaleidescape = Kaleidescape("my-kaleidescape.local")
     kaleidescape.dispatcher.connect(const.SIGNAL_CONTROLLER_EVENT, controller_event)
     kaleidescape.dispatcher.connect(const.SIGNAL_DEVICE_EVENT, device_event)
-    await kaleidescape.connect()
+    await kaleidescape.connect(auto_reconnect=True)
 
-    device = await kaleidescape.get_device()
+    device = await kaleidescape.get_local_device()
 
     if device.power.state == const.DEVICE_POWER_STATE_STANDBY:
         await device.leave_standby()

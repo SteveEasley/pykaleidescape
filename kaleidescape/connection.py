@@ -34,15 +34,13 @@ SEPARATOR_BYTES = SEPARATOR.encode("latin-1")
 class Connection:
     """Class handling network connection to hardware device."""
 
-    def __init__(
-        self, dispatcher: Dispatcher, host: str, port: int = None, timeout: float = None
-    ) -> None:
+    def __init__(self, dispatcher: Dispatcher) -> None:
         """Initializes connection."""
         self._dispatcher = dispatcher
-        self._host = host
-        self._port = port if port else const.DEFAULT_CONNECT_PORT
-        self._timeout = timeout if timeout else const.DEFAULT_CONNECT_TIMEOUT
 
+        self._ip_address: str | None = None
+        self._port: int = const.DEFAULT_CONNECT_PORT
+        self._timeout: float = const.DEFAULT_CONNECT_TIMEOUT
         self._state: str = const.STATE_DISCONNECTED
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
@@ -58,9 +56,9 @@ class Connection:
         return self._dispatcher
 
     @property
-    def host(self) -> str:
-        """Returns host of the hardware device to connect to."""
-        return self._host
+    def ip_address(self) -> str | None:
+        """Returns ip of the server connected to."""
+        return self._ip_address
 
     @property
     def port(self) -> int:
@@ -79,6 +77,10 @@ class Connection:
 
     async def connect(
         self,
+        ip_address: str,
+        *,
+        port: int = None,
+        timeout: float = None,
         auto_reconnect: bool = False,
         reconnect_delay: float = const.DEFAULT_RECONNECT_DELAY,
     ) -> None:
@@ -86,19 +88,9 @@ class Connection:
         if self._state == const.STATE_CONNECTED:
             return
 
-        if re.search("^[0-9.]+$", self._host) is None:
-            host = self._host
-            try:
-                # Attempt resolving via mDNS
-                self._host = await self._resolve(host, True)
-            except dns.exception.DNSException:
-                try:
-                    # Attempt resolving via DNS
-                    self._host = await self._resolve(host)
-                except dns.exception.DNSException:
-                    raise ConnectionError(f"Failed to resolve host {self._host}")
-
-            _LOGGER.debug("Resolved %s to %s", host, self._host)
+        self._ip_address = ip_address
+        self._port = port if port else const.DEFAULT_CONNECT_PORT
+        self._timeout = timeout if timeout else const.DEFAULT_CONNECT_TIMEOUT
 
         # Disable auto_reconnect until a good initial connect
         self._auto_reconnect = False
@@ -108,24 +100,12 @@ class Connection:
         self._auto_reconnect = auto_reconnect
         self._reconnect_delay = reconnect_delay
 
-        _LOGGER.info("Connected to %s", self._host)
-
-    async def _resolve(self, host: str, use_mdns: bool = False) -> str:
-        """Resolve hostname to IP using mDNS."""
-        resolver = dns.asyncresolver.Resolver()
-        if use_mdns:
-            resolver.nameservers = ["224.0.0.251"]
-            resolver.port = 5353
-        resolver.lifetime = min(self._timeout, 5.0)
-        answer: list[A] = await resolver.resolve(host, rdtype="A")
-        if len(answer) == 0:
-            raise RuntimeError("Answer expected")
-        return answer[0].to_text()
+        _LOGGER.info("Connected to %s", self._ip_address)
 
     async def _connect(self) -> None:
-        """Connect to host device."""
+        """Connect to server."""
         try:
-            connection = asyncio.open_connection(self._host, self._port)
+            connection = asyncio.open_connection(self._ip_address, self._port)
             self._reader, self._writer = await asyncio.wait_for(
                 connection, self._timeout
             )
@@ -163,9 +143,9 @@ class Connection:
                 else:
                     # Messages are a response to a pending request.
                     if device_id not in self._pending_requests:
-                        _LOGGER.warning("Response device not registered '%s'", response)
+                        _LOGGER.error("Response device not registered '%s'", response)
                     elif response.seq not in self._pending_requests[device_id]:
-                        _LOGGER.warning("Response seq not registered '%s'", response)
+                        _LOGGER.error("Response seq not registered '%s'", response)
                     else:
                         request = self._pending_requests[device_id][response.seq]
                         request.set(response)
@@ -192,30 +172,32 @@ class Connection:
         else:
             self._state = const.STATE_DISCONNECTED
 
-        _LOGGER.debug(
-            "Disconnected from %s %s('%s')", self._host, type(err).__name__, err
+        _LOGGER.error(
+            "Disconnected from %s %s('%s')", self._ip_address, type(err).__name__, err
         )
         self._dispatcher.send(SIGNAL_CONNECTION_EVENT, EVENT_CONNECTION_DISCONNECTED)
 
     async def _reconnect(self):
-        """Reconnect to host device."""
+        """Reconnect to server."""
         try:
             while self._state != const.STATE_CONNECTED:
                 try:
                     await self._connect()
                 except ConnectionError as err:
-                    _LOGGER.debug("Failed reconnect to %s with '%s'", self._host, err)
+                    _LOGGER.warning(
+                        "Failed reconnect to %s with '%s'", self._ip_address, err
+                    )
                     await self._disconnect()
                     await asyncio.sleep(self._reconnect_delay)
                 else:
                     self._reconnect_task = None
-                    _LOGGER.info("Reconnected to %s", self._host)
+                    _LOGGER.info("Reconnected to %s", self._ip_address)
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.exception("Unhandled exception %s('%s')", type(err).__name__, err)
             raise
 
     async def disconnect(self):
-        """Disconnect from host device."""
+        """Disconnect from server."""
         if self._state == const.STATE_DISCONNECTED:
             return
 
@@ -232,11 +214,11 @@ class Connection:
         await self._disconnect()
         self._state = const.STATE_DISCONNECTED
 
-        _LOGGER.info("Disconnected from %s", self._host)
+        _LOGGER.info("Disconnected from %s", self._ip_address)
         self._dispatcher.send(SIGNAL_CONNECTION_EVENT, EVENT_CONNECTION_DISCONNECTED)
 
     async def _disconnect(self):
-        """Disconnect from host device."""
+        """Disconnect from server."""
         if self._response_handler_task:
             self._response_handler_task.cancel()
             try:
@@ -254,7 +236,7 @@ class Connection:
         self._pending_requests.clear()
 
     async def send(self, request: Request) -> Response:
-        """Sends request to host device."""
+        """Sends request to server"""
         if self._state != const.STATE_CONNECTED:
             err = "Not connected to device"
             _LOGGER.error(err)
@@ -303,3 +285,35 @@ class Connection:
             _LOGGER.error("Request seq not registered '%s'", request)
         else:
             self._pending_requests[request.device_id].pop(request.seq)
+
+    @staticmethod
+    async def resolve(host: str, timeout: int = 5) -> str:
+        """Resolve hostname to ip address."""
+
+        async def _resolve(use_mdns: bool) -> str:
+            resolver = dns.asyncresolver.Resolver()
+            resolver.lifetime = timeout
+            if use_mdns:
+                resolver.nameservers = ["224.0.0.251"]
+                resolver.port = 5353
+            answer: list[A] = await resolver.resolve(host, rdtype="A")
+            if len(answer) == 0:
+                raise RuntimeError("Answer expected")
+            return answer[0].to_text()
+
+        ip_address = host
+        if re.search("^[0-9.]+$", host) is None:
+            try:
+                # Attempt resolving via mDNS
+                ip_address = await _resolve(True)
+            except dns.exception.DNSException:
+                try:
+                    # Attempt resolving via DNS
+                    ip_address = await _resolve(False)
+                except dns.exception.DNSException as err:
+                    raise ConnectionError(f"Failed to resolve host {host}") from err
+
+        if ip_address != host:
+            _LOGGER.debug("Resolved %s to %s", host, ip_address)
+
+        return ip_address
