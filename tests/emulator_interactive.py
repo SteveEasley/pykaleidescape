@@ -7,6 +7,7 @@ import getopt
 import json
 import logging
 import os.path
+import re
 import signal
 import sys
 
@@ -135,7 +136,6 @@ class State:
 
     def __init__(self, device: Device, state: dict) -> None:
         self._device = device
-        self._is_hds = state["is_hds"]
         self._cpdid = state["cpdid"]
         self._serial_number = state["serial_number"]
         self._ip_address = state["ip_address"]
@@ -239,10 +239,6 @@ class State:
                 await task
 
         asyncio.create_task(work())
-
-    @property
-    def is_hds(self) -> bool:
-        return self._is_hds
 
     @property
     def cpdid(self) -> str:
@@ -1017,6 +1013,25 @@ class Device:
         return SUCCESS
 
     # noinspection PyUnusedLocal
+    async def GET_SYSTEM_PAIRING_INFO(self, request: Request, **kwargs):
+        if not re.match(r"^10\.", self.state.kos_version):
+            raise error.MessageError(const.ERROR_INVALID_REQUEST, request.message)
+        if self.emulator.peering is None:
+            res = ["", "", "", ""]
+        else:
+            peering = self.emulator.peering["peer"]
+            res = [
+                peering["peered_name"],
+                peering["peered_system_id"].lower(),
+                f"{self.emulator.friendly_system_name} (paired system)"
+            ]
+            for pair in peering["pairs"]:
+                res.append(f"#{pair['encore'].lstrip('0').lower()}")
+                res.append(f"#{pair['premiere'].lstrip('0').lower()}")
+
+        return SUCCESS, "SYSTEM_PAIRING_INFO", res
+
+    # noinspection PyUnusedLocal
     async def GET_AVAILABLE_DEVICES(self, *args, **kwargs):
         fields = [LOCAL_CPDID] if self.is_local else []
         fields = fields + [d.cpdid for d in self.emulator.devices if d.cpdid]
@@ -1038,7 +1053,9 @@ class Device:
         return SUCCESS, "DEVICE_INFO", fields
 
     # noinspection PyUnusedLocal
-    async def GET_ZONE_CAPABILITIES(self, *args, **kwargs):
+    async def GET_ZONE_CAPABILITIES(self, request: Request, **kwargs):
+        if not re.match(r"^10\.", self.state.kos_version):
+            raise error.MessageError(const.ERROR_INVALID_REQUEST, request.message)
         fields = self.state.get_num_zones()
         return (
             SUCCESS,
@@ -1212,12 +1229,13 @@ class Device:
 class Emulator:
     """Class for emulating a Kaleidescape system."""
 
-    def __init__(self, fixture: str, host: str, port: int = const.DEFAULT_CONNECT_PORT):
+    def __init__(self, fixture: str, host: str, port: int):
         """Initialize the emulator."""
         self._host = host
         self._port = port
         self._system_id: str = ""
         self._friendly_system_name: str = ""
+        self._peering: dict = {}
         self._devices: list[Device] = []
         self._clients: list[Client] = []
         self._control_server: asyncio.base_events.Server | None = None
@@ -1233,6 +1251,7 @@ class Emulator:
 
         self._system_id = fixture["system_id"]
         self._friendly_system_name = fixture["friendly_system_name"]
+        self._peering = fixture["peering"] if "peering" in fixture else None
 
         device = Device(self)
         device.state = State(device, fixture["devices"]["members"][0])
@@ -1252,12 +1271,17 @@ class Emulator:
         """Starts the emulator."""
         if self._control_server:
             raise Exception("Already started")
-        self._control_server = await asyncio.start_server(self._connection_handler, self._host, self._port)
+        self._control_server = await asyncio.start_server(
+            self._cp_handler, self._host, self._port
+        )
 
         self._web_server = web.ServerRunner(web.Server(self._web_handler))
         await self._web_server.setup()
-        site = web.TCPSite(self._web_server, 'localhost', 80)
-        await site.start()
+        site = web.TCPSite(self._web_server, self._host, 80)
+        try:
+            await site.start()
+        except OSError:
+            _LOGGER.debug("Webserver already running")
 
         _LOGGER.debug("Started")
 
@@ -1278,14 +1302,29 @@ class Emulator:
         _LOGGER.debug("Stopped")
 
     @property
+    def host(self) -> str:
+        """Returns the listening host."""
+        return self._host
+
+    @property
+    def port(self) -> int:
+        """Returns the listening port."""
+        return self._port
+
+    @property
     def system_id(self) -> str:
         """Returns the system id"""
         return self._system_id
 
     @property
     def friendly_system_name(self) -> str:
-        """Returns the friendly system name"""
+        """Returns the friendly system name."""
         return self._friendly_system_name
+
+    @property
+    def peering(self) -> dict:
+        """Returns the friendly system name."""
+        return self._peering
 
     @property
     def devices(self) -> list[Device]:
@@ -1302,21 +1341,46 @@ class Emulator:
         self._mock_commands[name] = msg
 
     async def _web_handler(self, request) -> web.Response:
-        responses = []
-        for device in self.devices:
-            responses.append("\n".join([
-                device.state.serial_number,
-                device.state.ip_address,
-                self._system_id,
-                "HDS" if device.state.is_hds else "peer",
-                "1.2.3.4-56789",
-                "my-kaleidescape",
-                "---"
-            ]))
-        return web.Response(text="\n".join(responses))
+        """Handler for server_list.dat requests."""
+        servers = []
+        if self._peering is None:
+            device = self._devices[0]
+            servers.append(device.state.serial_number.lower())
+            servers.append(device.state.ip_address)
+            servers.append(str(int(self.system_id, 16)))
+            servers.append("HDS")
+            servers.append(device.state.kos_version)
+            servers.append("my-kaleidescape")
+            servers.append("---")
+        else:
+            for server in self._peering["servers"]:
+                address = self._host
+                if self._port != const.DEFAULT_PROTOCOL_PORT:
+                    address = address + f"{self._port}"
+                servers.append(server["serial_number"].lower() + "   ")
+                servers.append(server["ip_address"])
+                servers.append(str(int(server["system_id"], 16)))
+                servers.append("HDS")
+                servers.append(server["kos_version"])
+                if server["ip_address"] == address:
+                    servers.append("my-kaleidescape")
+                else:
+                    servers.append("")
+                servers.append("---")
+            for pair in self._peering["peer"]["pairs"]:
+                for device in self._devices:
+                    if device.serial_number == pair["encore"]:
+                        servers.append(device.state.serial_number.lower())
+                        servers.append(device.state.ip_address)
+                        servers.append(str(int(self.system_id, 16)))
+                        servers.append("peer")
+                        servers.append(device.state.kos_version)
+                        servers.append("")
+                        servers.append("---")
+        return web.Response(text="\n".join(servers))
 
-    async def _connection_handler(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        """Main service loop for handling client connections."""
+    async def _cp_handler(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        """Main service loop for handling control protocol connections."""
         client = Client(reader, writer)
         if self.local_device.cpdid:
             client.unsubscribe(LOCAL_CPDID)
@@ -1451,7 +1515,7 @@ class Shell:
         self._running = True
 
     async def start(self):
-        print(f"Listening on port {const.DEFAULT_CONNECT_PORT}")
+        print(f"Listening at {self._emulator.host}:{self._emulator.port}")
         print("Type `help` for commands.")
         while self._running:
             cmd = await aioconsole.ainput("> ")
@@ -1499,15 +1563,19 @@ class Shell:
 
 
 def main(argv):
+    host = "127.0.0.1"
+    port = const.DEFAULT_PROTOCOL_PORT
     fixture = None
 
     def usage():
-        print("Usage: python -m tests.emulator -h -f <filename>")
+        print("Usage: python -m tests.emulator -h -i <ip> -p <port> -f <filename>")
         print("    -h Help")
+        print(f"    -i IP (default: {host})")
+        print(f"    -p Port (default: {port})")
         print("    -f Fixture filename (from tests/fixtures)")
 
     try:
-        opts, _ = getopt.getopt(argv, "hf:")
+        opts, _ = getopt.getopt(argv, "hi:p:f:")
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -1515,7 +1583,11 @@ def main(argv):
         if opt == "-h":
             usage()
             sys.exit()
-        elif opt in "-f":
+        elif opt == "-i":
+            host = arg
+        elif opt == "-p":
+            port = int(arg)
+        elif opt == "-f":
             fixture = arg
 
     if not os.path.isfile(fixture):
@@ -1537,7 +1609,7 @@ def main(argv):
 
     logging.basicConfig(level=logging.DEBUG)
 
-    emulator = Emulator(fixture, "127.0.0.1")
+    emulator = Emulator(fixture, host, port)
     shell = Shell(emulator)
 
     loop.run_until_complete(emulator.start())

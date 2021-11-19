@@ -24,8 +24,8 @@ def test_init():
     connection = Connection(Dispatcher())
     assert isinstance(connection.dispatcher, Dispatcher)
     assert connection.ip_address is None
-    assert connection.port == const.DEFAULT_CONNECT_PORT
-    assert connection.timeout == const.DEFAULT_CONNECT_TIMEOUT
+    assert connection.port == const.DEFAULT_PROTOCOL_PORT
+    assert connection.timeout == const.DEFAULT_PROTOCOL_TIMEOUT
     assert connection.state == const.STATE_DISCONNECTED
 
 

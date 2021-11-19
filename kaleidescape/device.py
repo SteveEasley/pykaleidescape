@@ -29,10 +29,7 @@ class Device:
     """
 
     def __init__(
-        self,
-        kaleidescape: Kaleidescape,
-        device_id: str = LOCAL_CPDID,
-        system: SystemInfo = None,
+        self, kaleidescape: Kaleidescape, device_id: str = LOCAL_CPDID
     ) -> None:
         """Initializes device."""
         self._connection = kaleidescape.connection
@@ -47,18 +44,12 @@ class Device:
 
         # self._device_id will ALWAYS be the local device id (01) for the the local
         # device, or the #serialnumber for all other devices.
-        # This is contrasted with self.device_id, which will always be the assigned
-        # cpdid if one has been assigned, otherwise the #serialnumber.
         if device_id == LOCAL_CPDID:
             pass
         elif device_id[0] == "#":
             self.system.serial_number = device_id[1:]
         else:
             raise KaleidescapeError("Invalid device_id: " + device_id)
-
-        if system:
-            self.system.system_id = system.system_id
-            self.system.system_ip_address = system.ip_address
 
         self._signal: Signal | None = None
         self._disabled: bool = True
@@ -75,6 +66,11 @@ class Device:
         return self._dispatcher
 
     @property
+    def disabled(self) -> bool:
+        """Returns disabled state for the device."""
+        return self._disabled
+
+    @property
     def is_local(self) -> bool:
         """Returns if this device is the local one.
 
@@ -85,21 +81,8 @@ class Device:
         return self._device_id == LOCAL_CPDID
 
     @property
-    def disabled(self) -> bool:
-        """Returns disabled state for the device."""
-        return self._disabled
-
-    @property
     def device_id(self) -> str:
-        """Returns logical controller device identifier.
-
-        If a cpdid has been assigned to the hardware device by the Kaleidescape user
-        (default is none), that id is used. Otherwise the serial number is used.
-        """
-        if self.cpdid:
-            return self.cpdid
-        if self.serial_number:
-            return f"#{self.serial_number}"
+        """Returns logical controller device identifier."""
         return self._device_id
 
     @property
@@ -141,7 +124,7 @@ class Device:
     def has_device_id(self, device_id: str) -> bool:
         """Returns if this device has device_id."""
         return device_id in list(
-            filter(None, [self._device_id, self.cpdid, f"#{self.serial_number}"])
+            filter(None, [self._device_id, f"#{self.serial_number}", self.cpdid])
         )
 
     def enable(self) -> None:
@@ -161,24 +144,39 @@ class Device:
         if self._disabled or self.is_local:
             return
         self._disabled = True
-        if self._signal:
-            self._signal.disconnect()
-            self._signal = None
+        self.close()
         self.power.state = const.DEVICE_POWER_STATE_STANDBY
         self.power.readiness = const.SYSTEM_READINESS_STATE_IDLE
 
-    async def get_available_devices(self) -> list[str]:
-        """Returns a list of cpdid's in the system that have cpdid's assigned."""
-        res = await self._send(messages.GetAvailableDevices)
-        return (cast(messages.AvailableDevices, res)).field
+    def close(self) -> None:
+        """Closes device resources."""
+        if self._signal:
+            self._signal.disconnect()
+            self._signal = None
+
+    async def get_system_pairing_info(self) -> messages.SystemPairingInfo:
+        """Returns a list the serial numbers in the system."""
+        res = await self._send(messages.GetSystemPairingInfo)
+        return cast(messages.SystemPairingInfo, res)
+
+    async def get_friendly_system_name(self) -> str:
+        """Returns friendly system name."""
+        res = await self._send(messages.GetFriendlySystemName)
+        return cast(messages.FriendlySystemName, res).field
 
     async def get_available_serial_numbers(self) -> list[str]:
         """Returns a list the serial numbers in the system."""
         res = await self._send(messages.GetAvailableDevicesBySerialNumber)
         return (cast(messages.AvailableDevicesBySerialNumber, res)).field
 
+    async def get_available_devices(self) -> list[str]:
+        """Returns a list of cpdid's in the system that have cpdid's assigned."""
+        res = await self._send(messages.GetAvailableDevices)
+        return (cast(messages.AvailableDevices, res)).field
+
     async def enable_events(self, device_id: str) -> None:
         """Sends enable events command for device with id."""
+        assert device_id != LOCAL_CPDID
         await self._send(messages.EnableEvents, 0, [device_id])
 
     async def leave_standby(self) -> None:
@@ -206,29 +204,26 @@ class Device:
         if self.disabled:
             raise MessageError(const.ERROR_DEVICE_UNAVAILABLE)
 
-        # Get device_info first to ensure all following updates use correct device_id.
-        self._update_device_info(await self._get_device_info())
-
         result = iter(
             await asyncio.gather(
+                self._get_device_info(),
                 self._get_system_version(),
                 self._get_device_type_name(),
-                self._get_friendly_system_name(),
                 self._get_num_zones(),
                 self._get_device_power_state(),
                 self._get_system_readiness_state(),
             )
         )
 
+        self._update_device_info(next(result))
         self._update_system_version(next(result))
         self._update_device_type_name(next(result))
-        self._update_friendly_system_name(next(result))
         self._update_num_zones(next(result))
         self._update_device_power_state(next(result))
         self._update_system_readiness_state(next(result))
 
         if self.is_movie_player:
-            # Server only devices don's support this call
+            # Server only devices don't support this call
             self._update_friendly_name(await self._get_friendly_name())
 
     async def refresh_state(self) -> None:
@@ -273,17 +268,13 @@ class Device:
 
     async def _get_device_info(self) -> messages.DeviceInfo:
         """Returns device info."""
-        # Note this does not use self._send() so we can ensure the request uses
-        # either "01" or serial number, and not a user assigned cpdid (in case cpdids
-        # have changed since last check).
-        req = messages.GetDeviceInfo(self._device_id, 0)
-        res = await req.send(self._connection)
-        return cast(messages.DeviceInfo, res[0])
+        res = await self._send(messages.GetDeviceInfo)
+        return cast(messages.DeviceInfo, res)
 
     def _update_device_info(self, res: messages.DeviceInfo) -> None:
         self.system.serial_number = res.field_serial_number
         self.system.cpdid = res.field_cpdid
-        self.system.device_ip_address = res.field_ip
+        self.system.ip_address = res.field_ip
 
     async def _get_system_version(self) -> messages.SystemVersion:
         """Returns system version."""
@@ -292,7 +283,7 @@ class Device:
 
     def _update_system_version(self, res: messages.SystemVersion) -> None:
         self.system.protocol = res.field_protocol
-        self.system.kos = res.field_kos
+        self.system.kos_version = res.field_kos
 
     async def _get_num_zones(self) -> messages.NumZones:
         """Returns number of zones."""
@@ -330,21 +321,13 @@ class Device:
     ) -> None:
         self.power.readiness = res.field
 
-    async def _get_friendly_system_name(self) -> messages.FriendlySystemName:
-        """Returns friendly system name."""
-        res = await self._send(messages.GetFriendlySystemName)
-        return cast(messages.FriendlySystemName, res)
-
-    def _update_friendly_system_name(self, res: messages.FriendlySystemName) -> None:
-        self.system.system_name = res.field
-
     async def _get_friendly_name(self) -> messages.FriendlyName:
         """Returns friendly name."""
         res = await self._send(messages.GetFriendlyName)
         return cast(messages.FriendlyName, res)
 
     def _update_friendly_name(self, res: messages.FriendlyName) -> None:
-        self.system.player_name = res.field
+        self.system.friendly_name = res.field
 
     async def _get_ui_state(self) -> messages.UiState:
         """Returns ui state."""
@@ -590,16 +573,13 @@ class Device:
 class System:
     """System related properties."""
 
-    system_id: str = ""
-    system_name: str = ""
-    system_ip_address: str = ""
-    device_ip_address: str = ""
+    ip_address: str = ""
     serial_number: str = ""
     cpdid: str = ""
     type: str = ""
     protocol: int = 0
-    kos: str = ""
-    player_name: str = ""
+    kos_version: str = ""
+    friendly_name: str = ""
     movie_zones: int = 0
     music_zones: int = 0
 

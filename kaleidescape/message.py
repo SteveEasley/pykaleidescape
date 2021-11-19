@@ -236,6 +236,8 @@ class Message:
 class Request(Message):
     """Class representing a command request sent to hardware device."""
 
+    log_invalid_request: bool = True
+
     def __init__(self, device_id: str, zone: int = 0, fields: list[str] | None = None):
         """Initializes request."""
         super().__init__(
@@ -263,7 +265,13 @@ class Request(Message):
             connection.clear(self)
 
         if response.is_error:
-            _LOGGER.error("Request %s failed with '%s'", repr(self), response.error)
+            lvl = logging.ERROR
+            if (
+                not self.log_invalid_request
+                and response.status == const.ERROR_INVALID_REQUEST
+            ):
+                lvl = logging.DEBUG
+            _LOGGER.log(lvl, "Request %s failed with '%s'", repr(self), response.error)
             raise MessageError(response.status, str(self))
 
         _LOGGER.debug("Request %s received %s", repr(self), repr(response))
@@ -375,6 +383,47 @@ class Ack(Response):
     name = ""
 
 
+class GetSystemPairingInfo(Request):
+    """Class for GET_SYSTEM_PAIRING_INFO messages."""
+
+    log_invalid_request = False
+    name = f"GET_{const.SYSTEM_PAIRING_INFO}"
+
+
+@register
+class SystemPairingInfo(Response):
+    """Class for SYSTEM_PAIRING_INFO messages."""
+
+    name = const.SYSTEM_PAIRING_INFO
+
+    @property
+    def is_paired(self) -> bool:
+        """Returns if system is paired."""
+        return self._fields[0] != ""
+
+    @property
+    def field_paired_system_id(self) -> str:
+        """Returns system id of paired peer."""
+        return self._fields[1].lower()
+
+    @property
+    def field_paired_friendly_name(self) -> str:
+        """Returns friendly name of peer."""
+        return self._fields[2]
+
+    @property
+    def field_paired_peers(self) -> list[tuple[str, str]]:
+        """Returns list of peers."""
+        if not self.is_paired:
+            return []
+        res: list[tuple[str, str]] = []
+        for i in range(3, len(self._fields), 2):
+            encore = f"{(self._fields[i].strip('#'))[-12:]:0>12}"
+            premier = f"{(self._fields[i+1].strip('#'))[-12:]:0>12}"
+            res.append((encore.upper(), premier.upper()))
+        return res
+
+
 class GetAvailableDevices(Request):
     """Class for GET_AVAILABLE_DEVICES messages."""
 
@@ -459,7 +508,7 @@ class DeviceInfo(Response):
     @property
     def field_ip(self) -> str:
         """Returns ip."""
-        return self._fields[3]
+        return re.sub(r"\b0+(\d)", r"\1", self._fields[3])
 
 
 class GetZoneCapabilities(Request):

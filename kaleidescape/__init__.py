@@ -6,4 +6,4 @@ from .device import Device
 from .dispatcher import Dispatcher
 from .kaleidescape import Kaleidescape, SystemInfo
 
-__version__ = "2021.11.1"
+__version__ = "2021.11.2"

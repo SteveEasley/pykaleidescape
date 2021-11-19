@@ -1,0 +1,76 @@
+{
+    "system_id": "1234567894444C",
+    "friendly_system_name": "Encore System",
+    "peering": {
+        "servers": [
+            {
+                "system_id": "1234567894444C",
+                "serial_number": "123456000531",
+                "ip_address": "127.0.0.1",
+                "kos_version": "10.12.0-22734"
+            },
+            {
+                "system_id": "12345678908FA366",
+                "serial_number": "123456004374",
+                "ip_address": "192.168.0.209",
+                "kos_version": "8.8.0-22732"
+            }
+        ],
+        "peer": {
+            "peered_name": "Premiere System",
+            "peered_system_id": "12345678908FA366",
+            "pairs": [
+                {
+                    "encore": "123456011129",
+                    "premiere": "1234561D8410"
+                },
+                {
+                    "encore": "123456000617",
+                    "premiere": "1234563A2DF3"
+                }
+            ]
+        }
+    },
+    "devices": {
+        "members": [
+            {
+                "hds": true,
+                "cpdid": "",
+                "serial_number": "123456000531",
+                "ip_address": "127.0.0.1",
+                "protocol_version": 16,
+                "kos_version": "10.11.0-22557",
+                "movie_zones": 0,
+                "music_zones": 0,
+                "type_name": "Terra Movie Server",
+                "cinemascape_mode": 0
+            },
+            {
+                "cpdid": "02",
+                "serial_number": "123456011129",
+                "ip_address": "127.0.0.10",
+                "protocol_version": 16,
+                "kos_version": "10.11.0-22557",
+                "movie_zones": 1,
+                "music_zones": 1,
+                "type_name": "Strato",
+                "friendly_name": "Theatre Strato",
+                "cinemascape_mode": 0,
+                "_model": "Strato S"
+            },
+            {
+                "cpdid": "",
+                "serial_number": "123456000617",
+                "ip_address": "127.0.0.11",
+                "protocol_version": 16,
+                "kos_version": "10.11.0-22557",
+                "movie_zones": 1,
+                "music_zones": 1,
+                "type_name": "Player",
+                "friendly_name": "Bedroom Strato",
+                "cinemascape_mode": 0,
+                "_model": "Strato C"
+            }
+        ]
+    }
+}

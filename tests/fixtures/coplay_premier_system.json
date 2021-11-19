@@ -1,0 +1,90 @@
+{
+    "system_id": "12345678908FA366",
+    "friendly_system_name": "Premiere System",
+    "peering": {
+        "servers": [
+            {
+                "system_id": "1234567894444C",
+                "serial_number": "123456000531",
+                "ip_address": "127.0.0.1",
+                "kos_version": "10.12.0-22734"
+            },
+            {
+                "system_id": "12345678908FA366",
+                "serial_number": "123456004374",
+                "ip_address": "192.168.0.209",
+                "kos_version": "8.8.0-22732"
+            }
+        ],
+        "peer": {
+            "peered_name": "Premiere System",
+            "peered_system_id": "12345678908FA366",
+            "pairs": [
+                {
+                    "encore": "123456011129",
+                    "premiere": "1234561D8410"
+                },
+                {
+                    "encore": "123456000617",
+                    "premiere": "1234563A2DF3"
+                }
+            ]
+        }
+    },
+    "devices": {
+        "members": [
+            {
+                "hds": true,
+                "cpdid": "",
+                "serial_number": "123456004374",
+                "ip_address": "192.168.0.209",
+                "protocol_version": 16,
+                "kos_version": "8.7.0-22587",
+                "movie_zones": 0,
+                "music_zones": 0,
+                "type_name": "Server",
+                "cinemascape_mode": 0,
+                "_model": "3U"
+            },
+            {
+                "cpdid": "",
+                "serial_number": "123456003360",
+                "ip_address": "127.0.0.20",
+                "protocol_version": 16,
+                "kos_version": "8.7.0-22587",
+                "movie_zones": 1,
+                "music_zones": 1,
+                "type_name": "Disc Vault",
+                "friendly_name": "Gym Vault",
+                "cinemascape_mode": 0,
+                "_model": "M700"
+            },
+            {
+                "cpdid": "05",
+                "serial_number": "1234561D8410",
+                "ip_address": "127.0.0.21",
+                "protocol_version": 16,
+                "kos_version": "8.7.0-22587",
+                "movie_zones": 1,
+                "music_zones": 1,
+                "type_name": "Player",
+                "friendly_name": "Theatre",
+                "cinemascape_mode": 0,
+                "_model": "M500"
+            },
+            {
+                "cpdid": "",
+                "serial_number": "1234563A2DF3",
+                "ip_address": "127.0.0.22",
+                "protocol_version": 16,
+                "kos_version": "8.7.0-22587",
+                "movie_zones": 1,
+                "music_zones": 1,
+                "type_name": "Player",
+                "friendly_name": "Bedroom",
+                "cinemascape_mode": 0,
+                "_model": "M300"
+            }
+        ]
+    }
+}

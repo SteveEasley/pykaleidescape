@@ -39,8 +39,8 @@ class Connection:
         self._dispatcher = dispatcher
 
         self._ip_address: str | None = None
-        self._port: int = const.DEFAULT_CONNECT_PORT
-        self._timeout: float = const.DEFAULT_CONNECT_TIMEOUT
+        self._port: int = const.DEFAULT_PROTOCOL_PORT
+        self._timeout: float = const.DEFAULT_PROTOCOL_TIMEOUT
         self._state: str = const.STATE_DISCONNECTED
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
@@ -89,8 +89,8 @@ class Connection:
             return
 
         self._ip_address = ip_address
-        self._port = port if port else const.DEFAULT_CONNECT_PORT
-        self._timeout = timeout if timeout else const.DEFAULT_CONNECT_TIMEOUT
+        self._port = port if port else const.DEFAULT_PROTOCOL_PORT
+        self._timeout = timeout if timeout else const.DEFAULT_PROTOCOL_TIMEOUT
 
         # Disable auto_reconnect until a good initial connect
         self._auto_reconnect = False
@@ -302,6 +302,7 @@ class Connection:
             return answer[0].to_text()
 
         ip_address = host
+
         if re.search("^[0-9.]+$", host) is None:
             try:
                 # Attempt resolving via mDNS
@@ -312,6 +313,9 @@ class Connection:
                     ip_address = await _resolve(False)
                 except dns.exception.DNSException as err:
                     raise ConnectionError(f"Failed to resolve host {host}") from err
+        else:
+            # Normalize IP by removing leading zeros
+            ip_address = re.sub(r"\b0+(\d)", r"\1", ip_address)
 
         if ip_address != host:
             _LOGGER.debug("Resolved %s to %s", host, ip_address)

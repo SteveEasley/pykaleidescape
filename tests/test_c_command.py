@@ -122,19 +122,6 @@ async def test_get_available_devices2(emulator: Emulator, connection: Connection
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("emulator", ["multi_device_cpdid"], indirect=True)
-async def test_get_available_devices3(emulator: Emulator, connection: Connection):
-    """Test command with multi devices with cpdid's assigned."""
-    req = messages.GetAvailableDevices(LOCAL_CPDID)
-    res = cast(messages.AvailableDevices, (await req.send(connection))[0])
-    assert res.field == [LOCAL_CPDID, "02", "03"]
-
-    req = messages.GetAvailableDevices("#00000000123A")
-    res = cast(messages.AvailableDevices, (await req.send(connection))[0])
-    assert res.field == [LOCAL_CPDID, "02", "03"]
-
-
-@pytest.mark.asyncio
 async def test_get_available_devices_by_serial_number1(
     emulator: Emulator, connection: Connection
 ):
@@ -156,17 +143,6 @@ async def test_get_available_devices_by_serial_number2(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("emulator", ["multi_device_cpdid"], indirect=True)
-async def test_get_available_devices_by_serial_number3(
-    emulator: Emulator, connection: Connection
-):
-    """Test command with multi devices with cpdid's assigned."""
-    req = messages.GetAvailableDevicesBySerialNumber("02")
-    res = cast(messages.AvailableDevicesBySerialNumber, (await req.send(connection))[0])
-    assert res.field == ["00000000123A", "00000000123B"]
-
-
-@pytest.mark.asyncio
 async def test_get_device_info1(emulator: Emulator, connection: Connection):
     """Test command with single device."""
     req = messages.GetDeviceInfo(LOCAL_CPDID)
@@ -174,29 +150,6 @@ async def test_get_device_info1(emulator: Emulator, connection: Connection):
     assert res.field_serial_number == "00000000123A"
     assert res.field_cpdid == ""
     assert res.field_ip == "127.0.0.1"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("emulator", ["multi_device_cpdid"], indirect=True)
-async def test_get_device_info2(emulator: Emulator, connection: Connection):
-    """Test command with multiple devices."""
-    req = messages.GetDeviceInfo(LOCAL_CPDID)
-    res = cast(messages.DeviceInfo, (await req.send(connection))[0])
-    assert res.field_serial_number == "00000000123A"
-    assert res.field_cpdid == "02"
-    assert res.field_ip == "127.0.0.1"
-
-    req = messages.GetDeviceInfo("02")
-    res = cast(messages.DeviceInfo, (await req.send(connection))[0])
-    assert res.field_serial_number == "00000000123A"
-    assert res.field_cpdid == "02"
-    assert res.field_ip == "127.0.0.1"
-
-    req = messages.GetDeviceInfo("03")
-    res = cast(messages.DeviceInfo, (await req.send(connection))[0])
-    assert res.field_serial_number == "00000000123B"
-    assert res.field_cpdid == "03"
-    assert res.field_ip == "127.0.0.2"
 
 
 @pytest.mark.asyncio

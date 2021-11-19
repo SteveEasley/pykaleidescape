@@ -56,15 +56,6 @@ async def test_get_available_devices2(emulator: Emulator, kaleidescape: Kaleides
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("emulator", ["multi_device_cpdid"], indirect=True)
-async def test_get_available_devices3(emulator: Emulator, kaleidescape: Kaleidescape):
-    """Test get available devices with multi devices with cpdid's assigned."""
-    device = Device(kaleidescape)
-    fields = await device.get_available_devices()
-    assert fields == [LOCAL_CPDID, "02", "03"]
-
-
-@pytest.mark.asyncio
 async def test_get_available_serial_numbers1(
     emulator: Emulator, kaleidescape: Kaleidescape
 ):
@@ -87,32 +78,20 @@ async def test_get_available_serial_numbers2(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("emulator", ["multi_device_cpdid"], indirect=True)
-async def test_get_available_serial_numbers3(
-    emulator: Emulator, kaleidescape: Kaleidescape
-):
-    """Test get available serial numbers with multi devices with cpdid's assigned."""
-    device = Device(kaleidescape)
-    fields = await device.get_available_serial_numbers()
-    assert fields == ["00000000123A", "00000000123B"]
-
-
-@pytest.mark.asyncio
 async def test_refresh_device1(emulator: Emulator, kaleidescape: Kaleidescape):
     """Test refreshing system updates state."""
     device = Device(kaleidescape)
     await device.refresh_device()
-    assert device.device_id == "#00000000123A"
+    assert device.device_id == LOCAL_CPDID
     assert device.system.serial_number == "00000000123A"
     assert device.serial_number == "00000000123A"
     assert device.system.cpdid == ""
     assert device.cpdid == ""
-    assert device.system.device_ip_address == "127.0.0.1"
+    assert device.system.ip_address == "127.0.0.1"
     assert device.system.protocol == 16
-    assert device.system.kos == "10.4.2-19218"
+    assert device.system.kos_version == "10.4.2-19218"
     assert device.system.type == "Strato S"
-    assert device.system.system_name == "Home Cinema"
-    assert device.system.player_name == "Theater"
+    assert device.system.friendly_name == "Theater"
     assert device.system.movie_zones == 1
     assert device.system.music_zones == 1
     assert device.power.state == const.DEVICE_POWER_STATE_STANDBY
@@ -127,17 +106,16 @@ async def test_refresh_device2(emulator: Emulator, kaleidescape: Kaleidescape):
     """Test refreshing system updates state when there are multiple devices."""
     device3a = Device(kaleidescape)
     await device3a.refresh_device()
-    assert device3a.device_id == "#00000000123A"
+    assert device3a.device_id == LOCAL_CPDID
     assert device3a.system.serial_number == "00000000123A"
     assert device3a.serial_number == "00000000123A"
     assert device3a.system.cpdid == ""
     assert device3a.cpdid == ""
-    assert device3a.system.device_ip_address == "127.0.0.1"
+    assert device3a.system.ip_address == "127.0.0.1"
     assert device3a.system.protocol == 16
-    assert device3a.system.kos == "10.4.2-19218"
+    assert device3a.system.kos_version == "10.4.2-19218"
     assert device3a.system.type == "Strato S"
-    assert device3a.system.system_name == "Home Cinema"
-    assert device3a.system.player_name == "Theater"
+    assert device3a.system.friendly_name == "Theater"
     assert device3a.system.movie_zones == 1
     assert device3a.system.music_zones == 1
     assert device3a.power.state == const.DEVICE_POWER_STATE_STANDBY
@@ -152,41 +130,17 @@ async def test_refresh_device2(emulator: Emulator, kaleidescape: Kaleidescape):
     assert device3b.serial_number == "00000000123B"
     assert device3b.system.cpdid == ""
     assert device3b.cpdid == ""
-    assert device3b.system.device_ip_address == "127.0.0.2"
+    assert device3b.system.ip_address == "127.0.0.2"
     assert device3b.system.protocol == 16
-    assert device3b.system.kos == "10.4.2-19218"
+    assert device3b.system.kos_version == "10.4.2-19218"
     assert device3b.system.type == "Strato S"
-    assert device3b.system.system_name == "Home Cinema"
-    assert device3b.system.player_name == "Media Room"
+    assert device3b.system.friendly_name == "Media Room"
     assert device3b.system.movie_zones == 1
     assert device3b.system.music_zones == 1
     assert device3b.power.state == const.DEVICE_POWER_STATE_STANDBY
     assert device3b.power.readiness == const.SYSTEM_READINESS_STATE_IDLE
     assert device3b.is_server_only is False
     assert device3b.is_movie_player is True
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("emulator", ["multi_device_cpdid"], indirect=True)
-async def test_refresh_device3(emulator: Emulator, kaleidescape: Kaleidescape):
-    """Test refreshing updates state when there are devices with cpdid's assigned."""
-    device02 = Device(kaleidescape)
-    await device02.refresh_device()
-    assert device02.device_id == "02"
-    assert device02.system.serial_number == "00000000123A"
-    assert device02.serial_number == "00000000123A"
-    assert device02.system.cpdid == "02"
-    assert device02.cpdid == "02"
-    assert device02.system.device_ip_address == "127.0.0.1"
-
-    device03 = Device(kaleidescape, "#00000000123B")
-    await device03.refresh_device()
-    assert device03.device_id == "03"
-    assert device03.system.serial_number == "00000000123B"
-    assert device03.serial_number == "00000000123B"
-    assert device03.system.cpdid == "03"
-    assert device03.cpdid == "03"
-    assert device03.system.device_ip_address == "127.0.0.2"
 
 
 @pytest.mark.asyncio
@@ -251,7 +205,7 @@ async def test_events1(emulator: Emulator, kaleidescape: Kaleidescape):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("emulator", ["multi_device_cpdid"], indirect=True)
+@pytest.mark.parametrize("emulator", ["multi_device"], indirect=True)
 async def test_disable(emulator: Emulator, kaleidescape: Kaleidescape):
     """Test calling disable stops commands and events."""
     device1 = Device(kaleidescape)
@@ -279,7 +233,9 @@ async def test_disable(emulator: Emulator, kaleidescape: Kaleidescape):
     assert err.value.code == const.ERROR_DEVICE_UNAVAILABLE
 
     # Ensure signals to device2 have stopped
-    signal = device_signal(device1.dispatcher, "03", messages.SystemReadinessState.name)
+    signal = device_signal(
+        device1.dispatcher, "#00000000123B", messages.SystemReadinessState.name
+    )
     await emulator.send_event(
         ["03"], SUCCESS, messages.SystemReadinessState.name, ["0"]
     )

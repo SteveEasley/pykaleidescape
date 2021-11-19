@@ -118,7 +118,7 @@ class Client:
 class Emulator:
     """Class for emulating a Kaleidescape system."""
 
-    def __init__(self, fixture: str, host: str, port: int = const.DEFAULT_CONNECT_PORT):
+    def __init__(self, fixture: str, host: str, port: int = const.DEFAULT_PROTOCOL_PORT):
         """Initialize the emulator."""
         self._host = host
         self._port = port
@@ -236,63 +236,6 @@ class Emulator:
             )
             self.register_mock_command(
                 ("01", "#00000000123A", "#00000000123B"),
-                messages.GetSystemReadinessState.name,
-                (SUCCESS, messages.SystemReadinessState.name, ["2"]),
-            )
-
-        elif fixture == "multi_device_cpdid":
-            self.register_mock_command(
-                ("01", "02", "#00000000123A"),
-                messages.GetAvailableDevicesBySerialNumber.name,
-                (SUCCESS, messages.AvailableDevicesBySerialNumber.name, ["00000000123A", "00000000123B"])
-            )
-            self.register_mock_command(
-                ("01", "02", "#00000000123A"),
-                messages.GetAvailableDevices.name,
-                (SUCCESS, messages.AvailableDevices.name, ["01", "02", "03"]),
-            )
-            self.register_mock_command(
-                ("01", "02", "#00000000123A"),
-                messages.GetDeviceInfo.name,
-                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123A", "02", "127.0.0.1"]),
-            )
-            self.register_mock_command(
-                ("03", "#00000000123B"),
-                messages.GetDeviceInfo.name,
-                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123B", "03", "127.0.0.2"]),
-            )
-            self.register_mock_command(
-                ("01", "02", "#00000000123A", "03", "#00000000123B"),
-                messages.GetSystemVersion.name,
-                (SUCCESS, messages.SystemVersion.name, ["16", "10.4.2-19218"]),
-            )
-            self.register_mock_command(
-                ("01", "02", "#00000000123A", "03", "#00000000123B"),
-                messages.GetNumZones.name,
-                (SUCCESS, messages.NumZones.name, ["01", "01"]),
-            )
-            self.register_mock_command(
-                ("01", "02", "#00000000123A", "03", "#00000000123B"),
-                messages.GetDeviceTypeName.name,
-                (SUCCESS, messages.DeviceTypeName.name, ["Strato S"]),
-            )
-            self.register_mock_command(
-                ("01", "02", "#00000000123A"),
-                messages.GetFriendlyName.name,
-                (SUCCESS, messages.FriendlyName.name, ["Theater"]),
-            )
-            self.register_mock_command(
-                ("03", "#00000000123B"),
-                messages.GetFriendlyName.name,
-                (SUCCESS, messages.FriendlyName.name, ["Media Room"]),
-            )
-            self.register_mock_command(
-                ("01", "02", "#00000000123A", "03", "#00000000123B"),
-                messages.GetDevicePowerState.name,
-                (SUCCESS, messages.DevicePowerState.name, ["0", "0"]),
-            )
-            self.register_mock_command(
-                ("01", "02", "#00000000123A", "03", "#00000000123B"),
                 messages.GetSystemReadinessState.name,
                 (SUCCESS, messages.SystemReadinessState.name, ["2"]),
             )
@@ -446,9 +389,9 @@ class Emulator:
 
     async def _web_handler(self, request) -> web.Response:
         return web.Response(text="\n".join([
-            "00000000123A",
-            self._host,
-            "12345678901234567890",
+            "00000000123a",
+            f"{self._host}:{self._port}",
+            f"{int('123456789a', 16)}",
             "HDS",
             "10.11.0-22557",
             "my-kaleidescape",

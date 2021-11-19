@@ -46,7 +46,14 @@ class Dispatcher:
         if name in self._signals:
             for signal in self._signals[name]:
                 self._call_target(signal.target, *args)
-                _LOGGER.debug("Dispatched signal '%s' with %s", name, args)
+            if len(self._signals[name]) > 0:
+                _LOGGER.debug(
+                    "Dispatched signal '%s' to %s listener%s with %s",
+                    name,
+                    len(self._signals[name]),
+                    "s" if len(self._signals[name]) > 1 else "",
+                    args,
+                )
 
     def disconnect(self, signal: Signal):
         """Removes signal."""

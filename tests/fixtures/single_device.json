@@ -1,10 +1,20 @@
 {
-    "system_id": "12345678901234567890",
-    "friendly_system_name": "Mock Home Cinema",
+    "system_id": "AB54A98CEB1F0AD2",
+    "friendly_system_name": "Mock Cinema",
+    "server_list": [
+        [
+            "00000000123A",
+            "127.0.0.1",
+            "AB54A98CEB1F0AD2",
+            "HDS",
+            "10.11.0-22557",
+            "my-kaleidescape"
+        ]
+    ],
     "devices": {
         "members": [
             {
-                "is_hds": true,
+                "hds": true,
                 "cpdid": "",
                 "serial_number": "00000000123A",
                 "ip_address": "127.0.0.1",
