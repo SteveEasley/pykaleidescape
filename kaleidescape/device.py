@@ -243,8 +243,6 @@ class Device:
                 self._get_screen_mask(),
                 self._get_screen_mask2(),
                 self._get_cinemascape_mode(),
-                self._get_video_color(),
-                self._get_video_mode(),
             )
         )
 
@@ -255,8 +253,6 @@ class Device:
         self._update_screen_mask(next(result))
         self._update_screen_mask2(next(result))
         self._update_cinemascape_mode(next(result))
-        self._update_video_color(next(result))
-        self._update_video_mode(next(result))
 
         if self.movie.play_status != const.PLAY_STATUS_NONE:
             res1 = await self.get_content_details(self.osd.highlighted)
@@ -513,12 +509,10 @@ class Device:
         if isinstance(response, messages.DevicePowerState):
             self._update_device_power_state(response)
             await self.refresh_state()
-            # notify = True
         elif isinstance(response, messages.SystemReadinessState):
             self._update_system_readiness_state(response)
         elif isinstance(response, messages.FriendlyName):
             self._update_friendly_name(response)
-            # notify = True
 
         # OSD
         elif isinstance(response, messages.UiState):
@@ -543,14 +537,12 @@ class Device:
                     )
             elif self.movie.title:
                 self._update_content_details()
-            # notify = True
         elif isinstance(response, messages.MovieMediaType):
             self._update_movie_media_type(response)
 
         # Automation
         elif isinstance(response, messages.MovieLocation):
             self._update_movie_location(response)
-            # notify = True
         elif isinstance(response, messages.VideoColor):
             self._update_video_color(response)
         elif isinstance(response, messages.VideoMode):
@@ -597,10 +589,10 @@ class Power:
 class OSD:
     """On Screen Display related state."""
 
-    ui_screen: str = ""
-    ui_popup: str = ""
-    ui_dialog: str = ""
-    ui_screensaver: str = ""
+    ui_screen: str = const.UI_STATE_SCREEN_UNKNOWN
+    ui_popup: str = const.UI_STATE_POPUP_NONE
+    ui_dialog: str = const.UI_STATE_DIALOG_NONE
+    ui_screensaver: str = const.UI_STATE_SAVER_INACTIVE
     title_name: str = ""
     highlighted: str = ""
 
@@ -626,8 +618,8 @@ class Movie:
     color: str = ""
     country: str = ""
     aspect_ratio: str = ""
-    media_type: str = ""
-    play_status: str = ""
+    media_type: str = const.MOVIE_MEDIA_TYPE_NONE
+    play_status: str = const.PLAY_STATUS_NONE
     play_speed: int = 0
     title_number: int = 0
     title_length: int = 0
@@ -641,15 +633,15 @@ class Movie:
 class Automation:
     """Automation related state."""
 
-    movie_location: str = ""
+    movie_location: str = const.MOVIE_LOCATION_NONE
     cinemascape_mask: int = 0
-    cinemascape_mode: str = ""
-    video_mode: str = ""
-    video_color_eotf: str = ""
-    video_color_space: str = ""
-    video_color_depth: str = ""
-    video_color_sampling: str = ""
-    screen_mask_ratio: str = ""
+    cinemascape_mode: str = const.CINEMASCAPE_MODE_NONE
+    video_mode: str = const.VIDEO_MODE_NONE
+    video_color_eotf: str = const.VIDEO_COLOR_EOTF_UNKNOWN
+    video_color_space: str = const.VIDEO_COLOR_SPACE_DEFAULT
+    video_color_depth: str = const.VIDEO_COLOR_DEPTH_UNKNOWN
+    video_color_sampling: str = const.VIDEO_COLOR_SAMPLING_NONE
+    screen_mask_ratio: str = const.SCREEN_MASK_ASPECT_RATIO_NONE
     screen_mask_top_trim_rel: int = 0
     screen_mask_bottom_trim_rel: int = 0
     screen_mask_conservative_ratio: str = ""

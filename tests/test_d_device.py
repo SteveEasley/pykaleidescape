@@ -170,8 +170,8 @@ async def test_refresh_state(emulator: Emulator, kaleidescape: Kaleidescape):
     await device.refresh_device()
 
     assert device.power.state == const.DEVICE_POWER_STATE_STANDBY
-    assert device.osd.ui_screen == ""
-    assert device.automation.movie_location == ""
+    assert device.osd.ui_screen == const.UI_STATE_SCREEN_UNKNOWN
+    assert device.automation.movie_location == const.MOVIE_LOCATION_NONE
 
     signal = device_signal(
         device.dispatcher, LOCAL_CPDID, messages.DevicePowerState.name
