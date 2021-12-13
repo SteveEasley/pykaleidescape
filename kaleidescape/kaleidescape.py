@@ -152,10 +152,10 @@ class Kaleidescape:
                         raise ConnectionError(f"{err_msg}: code {response.status}")
                     data = await response.text()
             except asyncio.exceptions.TimeoutError as err:
-                _LOGGER.error(f"{err_msg}: {err}")
+                _LOGGER.error("%s: %s", err_msg, err)
                 raise ConnectionError(f"{err_msg}: timeout") from err
             except aiohttp.client_exceptions.ClientConnectorError as err:
-                _LOGGER.error(f"{err_msg}: {err}")
+                _LOGGER.error("%s: %s", err_msg, err)
                 raise ConnectionError(f"{err_msg}: {err}") from err
 
         servers = [
@@ -202,7 +202,7 @@ class Kaleidescape:
 
         assert len(self._systems) > 0
         if default_system_id is None:
-            err_msg = f"Discovery failed to find a server matching address"
+            err_msg = "Discovery failed to find a server matching address"
             raise ConnectionError(f"{err_msg} {protocol_address}")
         assert default_system_id is not None
         assert default_system_id in self._systems
@@ -416,8 +416,7 @@ class SystemInfo:
         addr = self.ip_address.split(":")
         if len(addr) == 1:
             return addr[0], const.DEFAULT_PROTOCOL_PORT
-        else:
-            return addr[0], int(addr[1])
+        return addr[0], int(addr[1])
 
     def __repr__(self) -> str:
         res = (

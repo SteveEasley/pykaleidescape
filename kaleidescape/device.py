@@ -15,7 +15,7 @@ from .error import KaleidescapeError, MessageError
 if TYPE_CHECKING:
     from .connection import Connection
     from .dispatcher import Dispatcher, Signal
-    from .kaleidescape import Kaleidescape, SystemInfo
+    from .kaleidescape import Kaleidescape
     from .message import Request, Response
 
     RequestType = TypeVar("RequestType", bound=Request)
@@ -198,6 +198,46 @@ class Device:
     async def stop(self) -> None:
         """Sends stop command."""
         await self._send(messages.Stop)
+
+    async def next(self) -> None:
+        """Sends next command."""
+        await self._send(messages.Next)
+
+    async def previous(self) -> None:
+        """Sends previous command."""
+        await self._send(messages.Previous)
+
+    async def replay(self) -> None:
+        """Sends replay command."""
+        await self._send(messages.Replay)
+
+    async def scan_forward(self) -> None:
+        """Sends scan_forward command."""
+        await self._send(messages.ScanForward)
+
+    async def scan_reverse(self) -> None:
+        """Sends scan_reverse command."""
+        await self._send(messages.ScanReverse)
+
+    async def select(self) -> None:
+        """Sends select command."""
+        await self._send(messages.Select)
+
+    async def up(self) -> None: # pylint: disable=invalid-name
+        """Sends up command."""
+        await self._send(messages.Up)
+
+    async def down(self) -> None:
+        """Sends down command."""
+        await self._send(messages.Down)
+
+    async def left(self) -> None:
+        """Sends left command."""
+        await self._send(messages.Left)
+
+    async def right(self) -> None:
+        """Sends right command."""
+        await self._send(messages.Right)
 
     async def refresh_device(self) -> None:
         """Syncs device state."""

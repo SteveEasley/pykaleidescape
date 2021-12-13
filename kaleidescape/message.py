@@ -1329,3 +1329,63 @@ class Stop(Request):
     """Class for STOP messages."""
 
     name = const.STOP
+
+
+class Next(Request):
+    """Class for NEXT messages."""
+
+    name = const.NEXT
+
+
+class Previous(Request):
+    """Class for PREVIOUS messages."""
+
+    name = const.PREVIOUS
+
+
+class Replay(Request):
+    """Class for REPLAY messages."""
+
+    name = const.REPLAY
+
+
+class ScanForward(Request):
+    """Class for SCAN_FORWARD messages."""
+
+    name = const.SCAN_FORWARD
+
+
+class ScanReverse(Request):
+    """Class for SCAN_REVERSE messages."""
+
+    name = const.SCAN_REVERSE
+
+
+class Select(Request):
+    """Class for SELECT messages."""
+
+    name = const.SELECT
+
+
+class Up(Request):
+    """Class for UP messages."""
+
+    name = const.UP
+
+
+class Down(Request):
+    """Class for DOWN messages."""
+
+    name = const.DOWN
+
+
+class Left(Request):
+    """Class for LEFT messages."""
+
+    name = const.LEFT
+
+
+class Right(Request):
+    """Class for RIGHT messages."""
+
+    name = const.RIGHT
