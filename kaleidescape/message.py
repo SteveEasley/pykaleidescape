@@ -1389,3 +1389,15 @@ class Right(Request):
     """Class for RIGHT messages."""
 
     name = const.RIGHT
+
+
+class Cancel(Request):
+    """Class for CANCEL messages."""
+
+    name = const.CANCEL
+
+
+class GoMovieList(Request):
+    """Class for GO_MOVIE_LIST messages."""
+
+    name = const.GO_MOVIE_LIST

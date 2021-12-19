@@ -239,6 +239,14 @@ class Device:
         """Sends right command."""
         await self._send(messages.Right)
 
+    async def cancel(self) -> None:
+        """Sends cancel command."""
+        await self._send(messages.Cancel)
+
+    async def go_movie_list(self) -> None:
+        """Sends list command."""
+        await self._send(messages.GoMovieList)
+
     async def refresh_device(self) -> None:
         """Syncs device state."""
         if self.disabled:
