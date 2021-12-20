@@ -1397,7 +1397,7 @@ class Cancel(Request):
     name = const.CANCEL
 
 
-class GoMovieList(Request):
+class GoMovieCovers(Request):
     """Class for GO_MOVIE_LIST messages."""
 
-    name = const.GO_MOVIE_LIST
+    name = const.GO_MOVIE_COVERS

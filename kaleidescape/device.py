@@ -243,9 +243,9 @@ class Device:
         """Sends cancel command."""
         await self._send(messages.Cancel)
 
-    async def go_movie_list(self) -> None:
+    async def go_movie_covers(self) -> None:
         """Sends list command."""
-        await self._send(messages.GoMovieList)
+        await self._send(messages.GoMovieCovers)
 
     async def refresh_device(self) -> None:
         """Syncs device state."""
