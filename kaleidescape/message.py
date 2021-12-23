@@ -1401,3 +1401,9 @@ class GoMovieCovers(Request):
     """Class for GO_MOVIE_LIST messages."""
 
     name = const.GO_MOVIE_COVERS
+
+
+class MenuToggle(Request):
+    """Class for KALEIDESCAPE_MENU_TOGGLE messages."""
+
+    name = const.KALEIDESCAPE_MENU_TOGGLE

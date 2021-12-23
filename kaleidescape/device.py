@@ -247,6 +247,10 @@ class Device:
         """Sends list command."""
         await self._send(messages.GoMovieCovers)
 
+    async def menu_toggle(self) -> None:
+        """Sends menu toggle command."""
+        await self._send(messages.MenuToggle)
+
     async def refresh_device(self) -> None:
         """Syncs device state."""
         if self.disabled:
