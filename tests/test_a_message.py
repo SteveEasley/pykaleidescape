@@ -265,7 +265,7 @@ def test_message_response_with_parse_error():
 
 def test_message_request():
     """Test message request."""
-    message = Request("01")
+    message = Request()
     assert message.device_id == "01"
     assert message.zone == 0
     assert message.seq == -1
@@ -276,7 +276,7 @@ def test_message_request():
 
 def test_message_request_with_fields():
     """Test message request."""
-    message = Request("01", 0, ["field1", "field2"])
+    message = Request(0, ["field1", "field2"])
     assert message.device_id == "01"
     assert message.zone == 0
     assert message.seq == -1
@@ -287,7 +287,7 @@ def test_message_request_with_fields():
 
 def test_message_get_available_devices():
     """Test message request as GET_AVAILABLE_DEVICES."""
-    message = messages.GetAvailableDevices("01")
+    message = messages.GetAvailableDevices()
     message.seq = 2
     assert message.device_id == "01"
     assert message.zone == 0

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 import dns.asyncresolver
 import dns.exception
@@ -23,10 +23,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-SIGNAL_CONNECTION_EVENT = "connection"
-EVENT_CONNECTION_MESSAGE = "message"
-EVENT_CONNECTION_CONNECTED = "connection_connected"
-EVENT_CONNECTION_DISCONNECTED = "connection_disconnected"
 SEPARATOR = "\n"
 SEPARATOR_BYTES = SEPARATOR.encode("latin-1")
 
@@ -34,78 +30,78 @@ SEPARATOR_BYTES = SEPARATOR.encode("latin-1")
 class Connection:
     """Class handling network connection to hardware device."""
 
-    def __init__(self, dispatcher: Dispatcher) -> None:
+    def __init__(self, dispatcher: Dispatcher, on_event: Callable = None) -> None:
         """Initializes connection."""
         self._dispatcher = dispatcher
+        self._on_event = on_event
 
-        self._ip_address: str | None = None
-        self._port: int = const.DEFAULT_PROTOCOL_PORT
-        self._timeout: float = const.DEFAULT_PROTOCOL_TIMEOUT
+        self._ip: str | None = None
+        self._port: int | None = None
+        self._timeout: float | None = None
         self._state: str = const.STATE_DISCONNECTED
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
         self._response_handler_task: asyncio.Task | None = None
         self._reconnect_delay: float | None = None
         self._reconnect_task: asyncio.Task | None = None
-        self._auto_reconnect: bool = False
-        self._pending_requests: dict[str, dict[int, Request]] = {}
+        self._reconnect_enabled: bool = False
+        self._pending_requests: dict[int, Request] = {}
 
     @property
     def dispatcher(self) -> Dispatcher:
-        """Returns dispatcher instance."""
+        """Return dispatcher instance."""
         return self._dispatcher
 
     @property
-    def ip_address(self) -> str | None:
-        """Returns ip of the server connected to."""
-        return self._ip_address
+    def ip(self) -> str | None:
+        """Return ip of the server connected to."""
+        return self._ip
 
     @property
-    def port(self) -> int:
-        """Returns port of the hardware device to connect to."""
+    def port(self) -> int | None:
+        """Return port of the hardware device to connect to."""
         return self._port
 
     @property
-    def timeout(self) -> float:
-        """Returns connection timeout in seconds."""
+    def timeout(self) -> float | None:
+        """Return connection timeout in seconds."""
         return self._timeout
 
     @property
     def state(self) -> str:
-        """Returns state of the connection to the hardware device."""
+        """Return state of the connection to the hardware device."""
         return self._state
 
     async def connect(
         self,
-        ip_address: str,
-        *,
-        port: int = None,
-        timeout: float = None,
-        auto_reconnect: bool = False,
+        ip: str,
+        port: int,
+        timeout: float,
+        reconnect: bool = False,
         reconnect_delay: float = const.DEFAULT_RECONNECT_DELAY,
     ) -> None:
-        """Connects to the hardware device."""
+        """Connect to the hardware device."""
         if self._state == const.STATE_CONNECTED:
             return
 
-        self._ip_address = ip_address
-        self._port = port if port else const.DEFAULT_PROTOCOL_PORT
-        self._timeout = timeout if timeout else const.DEFAULT_PROTOCOL_TIMEOUT
+        self._ip = ip
+        self._port = port
+        self._timeout = timeout
 
-        # Disable auto_reconnect until a good initial connect
-        self._auto_reconnect = False
+        # Disable auto_reconnect until a good connect
+        self._reconnect_enabled = False
 
         await self._connect()
 
-        self._auto_reconnect = auto_reconnect
+        self._reconnect_enabled = reconnect
         self._reconnect_delay = reconnect_delay
 
-        _LOGGER.info("Connected to %s", self._ip_address)
+        _LOGGER.info("Connected to %s", self._ip)
 
     async def _connect(self) -> None:
         """Connect to server."""
         try:
-            connection = asyncio.open_connection(self._ip_address, self._port)
+            connection = asyncio.open_connection(self._ip, self._port)
             self._reader, self._writer = await asyncio.wait_for(
                 connection, self._timeout
             )
@@ -119,7 +115,7 @@ class Connection:
         self._response_handler_task = asyncio.create_task(self._response_handler())
 
         self._state = const.STATE_CONNECTED
-        self._dispatcher.send(SIGNAL_CONNECTION_EVENT, EVENT_CONNECTION_CONNECTED)
+        self._dispatcher.send(const.STATE_CONNECTED)
 
     async def _response_handler(self) -> None:
         """Main loop receiving responses and events from hardware device."""
@@ -132,24 +128,17 @@ class Connection:
                 response = Response.factory(result.decode("latin-1").strip())
                 _LOGGER.debug("Response received '%s'", response.message)
 
-                device_id = response.device_id
-
                 if response.is_event:
                     # Events are unsolicited notifications about a change in state.
-                    # Send message to all devices.
-                    self._dispatcher.send(
-                        SIGNAL_CONNECTION_EVENT, EVENT_CONNECTION_MESSAGE, response
-                    )
-                else:
-                    # Messages are a response to a pending request.
-                    if device_id not in self._pending_requests:
-                        _LOGGER.error("Response device not registered '%s'", response)
-                    elif response.seq not in self._pending_requests[device_id]:
+                    if self._on_event:
+                        asyncio.create_task(self._on_event(response))
+                elif response.device_id == const.LOCAL_CPDID:
+                    if response.seq not in self._pending_requests:
                         _LOGGER.error("Response seq not registered '%s'", response)
                     else:
-                        request = self._pending_requests[device_id][response.seq]
+                        request = self._pending_requests[response.seq]
                         request.set(response)
-            except (asyncio.IncompleteReadError, ConnectionError, OSError) as err:
+            except (asyncio.IncompleteReadError, OSError) as err:
                 asyncio.create_task(self._handle_connection_error(err))
                 return
             except MessageParseError as err:
@@ -166,16 +155,16 @@ class Connection:
 
         await self._disconnect()
 
-        if self._auto_reconnect:
+        if self._reconnect_enabled:
             self._state = const.STATE_RECONNECTING
             self._reconnect_task = asyncio.create_task(self._reconnect())
         else:
             self._state = const.STATE_DISCONNECTED
 
         _LOGGER.error(
-            "Disconnected from %s %s('%s')", self._ip_address, type(err).__name__, err
+            "Disconnected from %s %s('%s')", self._ip, type(err).__name__, err
         )
-        self._dispatcher.send(SIGNAL_CONNECTION_EVENT, EVENT_CONNECTION_DISCONNECTED)
+        self._dispatcher.send(const.STATE_DISCONNECTED)
 
     async def _reconnect(self):
         """Reconnect to server."""
@@ -184,14 +173,12 @@ class Connection:
                 try:
                     await self._connect()
                 except ConnectionError as err:
-                    _LOGGER.warning(
-                        "Failed reconnect to %s with '%s'", self._ip_address, err
-                    )
+                    _LOGGER.warning("Failed reconnect to %s with '%s'", self._ip, err)
                     await self._disconnect()
                     await asyncio.sleep(self._reconnect_delay)
                 else:
                     self._reconnect_task = None
-                    _LOGGER.info("Reconnected to %s", self._ip_address)
+                    _LOGGER.info("Reconnected to %s", self._ip)
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.exception("Unhandled exception %s('%s')", type(err).__name__, err)
             raise
@@ -214,8 +201,8 @@ class Connection:
         await self._disconnect()
         self._state = const.STATE_DISCONNECTED
 
-        _LOGGER.info("Disconnected from %s", self._ip_address)
-        self._dispatcher.send(SIGNAL_CONNECTION_EVENT, EVENT_CONNECTION_DISCONNECTED)
+        _LOGGER.info("Disconnected from %s", self._ip)
+        self._dispatcher.send(const.STATE_DISCONNECTED)
 
     async def _disconnect(self):
         """Disconnect from server."""
@@ -236,31 +223,24 @@ class Connection:
         self._pending_requests.clear()
 
     async def send(self, request: Request) -> Response:
-        """Sends request to server"""
+        """Send request to device"""
         if self._state != const.STATE_CONNECTED:
             err = "Not connected to device"
             _LOGGER.error(err)
             raise KaleidescapeError(err)
-
-        if request.device_id not in self._pending_requests:
-            self._pending_requests[request.device_id] = {}
 
         while request.seq < 0:
             try:
                 # Devices can only handle 10 concurrent requests. Find next available
                 # sequence number not in use.
                 request.seq = next(
-                    (
-                        i
-                        for i in range(0, 10)
-                        if i not in self._pending_requests[request.device_id]
-                    )
+                    (i for i in range(0, 10) if i not in self._pending_requests)
                 )
             except StopIteration:
                 await asyncio.sleep(0.01)
                 continue
 
-        self._pending_requests[request.device_id][request.seq] = request
+        self._pending_requests[request.seq] = request
 
         try:
             assert self._writer
@@ -277,14 +257,12 @@ class Connection:
         return response
 
     def clear(self, request: Request):
-        """Clears request from the pending requests list, indicating response has been
+        """Clear request from the pending requests list, indicating response has been
         received."""
-        if request.device_id not in self._pending_requests:
-            _LOGGER.error("Request device_id not registered '%s'", request)
-        elif request.seq not in self._pending_requests[request.device_id]:
+        if request.seq not in self._pending_requests:
             _LOGGER.error("Request seq not registered '%s'", request)
         else:
-            self._pending_requests[request.device_id].pop(request.seq)
+            self._pending_requests.pop(request.seq)
 
     @staticmethod
     async def resolve(host: str, timeout: int = 5) -> str:

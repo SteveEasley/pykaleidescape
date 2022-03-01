@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from aiohttp import web
-
 from kaleidescape import const, error
 from kaleidescape import message as messages
 from kaleidescape.connection import SEPARATOR
@@ -118,252 +116,185 @@ class Client:
 class Emulator:
     """Class for emulating a Kaleidescape system."""
 
-    def __init__(self, fixture: str, host: str, port: int = const.DEFAULT_PROTOCOL_PORT):
+    def __init__(self, host: str, port: int = const.DEFAULT_PROTOCOL_PORT):
         """Initialize the emulator."""
         self._host = host
         self._port = port
         self._clients: list[Client] = []
-        self._control_server: asyncio.base_events.Server | None = None
-        self._web_server: web.ServerRunner | None = None
+        self._server: asyncio.base_events.Server | None = None
         self._mock_commands: dict[str, dict] = {}
 
-        if fixture == "single_device":
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetAvailableDevicesBySerialNumber.name,
-                (SUCCESS, messages.AvailableDevicesBySerialNumber.name, ["00000000123A"])
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetAvailableDevices.name,
-                (SUCCESS, messages.AvailableDevices.name, ["01"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetDeviceInfo.name,
-                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123A", "00", "127.0.0.1"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetSystemVersion.name,
-                (SUCCESS, messages.SystemVersion.name, ["16", "10.4.2-19218"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetNumZones.name,
-                (SUCCESS, messages.NumZones.name, ["01", "01"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetDeviceTypeName.name,
-                (SUCCESS, messages.DeviceTypeName.name, ["Strato S"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetFriendlyName.name,
-                (SUCCESS, messages.FriendlyName.name, ["Theater"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetDevicePowerState.name,
-                (SUCCESS, messages.DevicePowerState.name, ["0", "0"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetSystemReadinessState.name,
-                (SUCCESS, messages.SystemReadinessState.name, ["2"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetContentDetails.name,
-                [
-                    (SUCCESS, messages.ContentDetailsOverview.name, ["2", "26-0.0-S_c446c8e2", "movies"]),
-                    (SUCCESS, messages.ContentDetails.name, ["1", "Content_handle", "26-0.0-S_c446c8e2"]),
-                    (SUCCESS, messages.ContentDetails.name, ["2", "Title", "Turtle Odyssey"]),
-                ]
-            )
-
-        elif fixture == "multi_device":
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetAvailableDevicesBySerialNumber.name,
-                (SUCCESS, messages.AvailableDevicesBySerialNumber.name, ["00000000123A", "00000000123B"])
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetAvailableDevices.name,
-                (SUCCESS, messages.AvailableDevices.name, ["01"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetDeviceInfo.name,
-                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123A", "00", "127.0.0.1"]),
-            )
-            self.register_mock_command(
-                ("#00000000123B",),
-                messages.GetDeviceInfo.name,
-                (SUCCESS, messages.DeviceInfo.name, ["", "00000000123B", "00", "127.0.0.2"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A", "#00000000123B"),
-                messages.GetSystemVersion.name,
-                (SUCCESS, messages.SystemVersion.name, ["16", "10.4.2-19218"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A", "#00000000123B"),
-                messages.GetNumZones.name,
-                (SUCCESS, messages.NumZones.name, ["01", "01"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A", "#00000000123B"),
-                messages.GetDeviceTypeName.name,
-                (SUCCESS, messages.DeviceTypeName.name, ["Strato S"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A"),
-                messages.GetFriendlyName.name,
-                (SUCCESS, messages.FriendlyName.name, ["Theater"]),
-            )
-            self.register_mock_command(
-                ("#00000000123B",),
-                messages.GetFriendlyName.name,
-                (SUCCESS, messages.FriendlyName.name, ["Media Room"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A", "#00000000123B"),
-                messages.GetDevicePowerState.name,
-                (SUCCESS, messages.DevicePowerState.name, ["0", "0"]),
-            )
-            self.register_mock_command(
-                ("01", "#00000000123A", "#00000000123B"),
-                messages.GetSystemReadinessState.name,
-                (SUCCESS, messages.SystemReadinessState.name, ["2"]),
-            )
-
-        else:
-            raise Exception(f"Undefined fixture: {fixture}")
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GetAvailableDevicesBySerialNumber.name,
+            (SUCCESS, messages.AvailableDevicesBySerialNumber.name, ["00000000123A"])
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GetAvailableDevices.name,
+            (SUCCESS, messages.AvailableDevices.name, ["01"]),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GetDeviceInfo.name,
+            (SUCCESS, messages.DeviceInfo.name, ["", "00000000123A", "00", "127.0.0.1"]),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GetSystemVersion.name,
+            (SUCCESS, messages.SystemVersion.name, ["16", "10.4.2-19218"]),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GetNumZones.name,
+            (SUCCESS, messages.NumZones.name, ["01", "01"]),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GetDeviceTypeName.name,
+            (SUCCESS, messages.DeviceTypeName.name, ["Strato S"]),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GetFriendlyName.name,
+            (SUCCESS, messages.FriendlyName.name, ["Theater"]),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GetDevicePowerState.name,
+            (SUCCESS, messages.DevicePowerState.name, ["0", "0"]),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GetSystemReadinessState.name,
+            (SUCCESS, messages.SystemReadinessState.name, ["2"]),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GetContentDetails.name,
+            [
+                (SUCCESS, messages.ContentDetailsOverview.name, ["2", "26-0.0-S_c446c8e2", "movies"]),
+                (SUCCESS, messages.ContentDetails.name, ["1", "Content_handle", "26-0.0-S_c446c8e2"]),
+                (SUCCESS, messages.ContentDetails.name, ["2", "Title", "Turtle Odyssey"]),
+            ]
+        )
 
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetFriendlySystemName.name,
             (SUCCESS, messages.FriendlySystemName.name, ["Home Cinema"]),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetZoneCapabilities.name,
             (SUCCESS, messages.ZoneCapabilities.name, ["Y", "Y", "N", "Y"]),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetUiState.name,
             (SUCCESS, messages.UiState.name, ["01", "00", "00", "0"]),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetHighlightedSelection.name,
             (SUCCESS, messages.HighlightedSelection.name, [""]),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetPlayStatus.name,
             (SUCCESS, messages.PlayStatus.name, ["0", "1", "00", "00000", "00000", "000", "00000", "00000"]),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetMovieLocation.name,
             (SUCCESS, messages.MovieLocation.name, ["03"]),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetVideoColor.name,
             (SUCCESS, messages.VideoColor.name, ["00", "00", "24", "00"]),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetVideoMode.name,
             (SUCCESS, messages.VideoMode.name, ["00", "00", "00"]),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetScreenMask.name,
             (SUCCESS, messages.ScreenMask.name, ["00", "000", "000", "05", "0000", "0000"]),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetScreenMask2.name,
             (SUCCESS, messages.ScreenMask2.name, ["00", "00", "00000", "00000"]),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetCinemascapeMode.name,
             (SUCCESS, messages.CinemascapeMode.name, ["0"]),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.GetCinemascapeMask.name,
             (SUCCESS, messages.CinemascapeMask.name, ["000"]),
         )
 
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.EnableEvents.name,
             (SUCCESS,),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.LeaveStandby.name,
             (SUCCESS,),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             messages.EnterStandby.name,
             (SUCCESS,),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             "PLAY",  # Fake command for simulating slow work
             (SUCCESS,),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             "PAUSE",  # Fake command for simulating slow work
             (SUCCESS,),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             "STOP",  # Fake command for simulating slow work
             (SUCCESS,),
         )
         self.register_mock_command(
-            ("01", "02", "#00000000123A", "03", "#00000000123B"),
+            ("01", "#00000000123A"),
             "_SLEEP",  # Fake command for simulating slow work
             (SUCCESS,),
         )
 
     async def start(self):
         """Starts the emulator."""
-        if self._control_server:
+        if self._server:
             raise Exception("Already started")
-        self._control_server = await asyncio.start_server(self._connection_handler, self._host, self._port)
-
-        self._web_server = web.ServerRunner(web.Server(self._web_handler))
-        await self._web_server.setup()
-        site = web.TCPSite(self._web_server, 'localhost', 10080)
-        await site.start()
-
+        self._server = await asyncio.start_server(
+            self._connection_handler, self._host, self._port
+        )
         _LOGGER.debug("Started")
 
     async def stop(self):
         """Stops the emulator."""
-        if self._control_server is None:
+        if self._server is None:
             return
-        await self._web_server.cleanup()
         for client in self._clients:
             await client.disconnect()
         self._clients.clear()
-        self._control_server.close()
-        await self._control_server.wait_closed()
-        self._control_server = None
+        self._server.close()
+        await self._server.wait_closed()
+        self._server = None
         await asyncio.sleep(0.01)
         _LOGGER.debug("Stopped")
 
@@ -386,17 +317,6 @@ class Emulator:
         """Removes all simulated commands for device_id."""
         for device_id in device_ids:
             del self._mock_commands[device_id]
-
-    async def _web_handler(self, request) -> web.Response:
-        return web.Response(text="\n".join([
-            "00000000123a",
-            f"{self._host}:{self._port}",
-            f"{int('123456789a', 16)}",
-            "HDS",
-            "10.11.0-22557",
-            "my-kaleidescape",
-            "---"
-        ]))
 
     async def _connection_handler(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Main service loop for handling client connections."""

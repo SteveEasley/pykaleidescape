@@ -3,7 +3,6 @@
 LOCAL_CPDID = "01"
 
 # Defaults
-DEFAULT_DISCOVERY_PORT = 80
 DEFAULT_PROTOCOL_PORT = 10000
 DEFAULT_PROTOCOL_TIMEOUT = 10.0
 DEFAULT_RECONNECT_DELAY = 10.0
@@ -12,15 +11,6 @@ DEFAULT_RECONNECT_DELAY = 10.0
 STATE_CONNECTED = "connected"
 STATE_DISCONNECTED = "disconnected"
 STATE_RECONNECTING = "reconnecting"
-
-# Signals
-SIGNAL_CONTROLLER_EVENT = "controller"
-SIGNAL_DEVICE_EVENT = "device"
-
-# Events
-EVENT_CONTROLLER_CONNECTED = "controller_connected"
-EVENT_CONTROLLER_DISCONNECTED = "controller_disconnected"
-EVENT_CONTROLLER_UPDATED = "controller_updated"
 
 # Control Protocol Statuses
 SUCCESS = 0
@@ -67,7 +57,9 @@ RESPONSE_ERROR = {
     ERROR_UNDETERMINED_ERROR: "Undetermined error",
 }
 
+#
 # Control Protocol Messages
+#
 
 SYSTEM_PAIRING_INFO = "SYSTEM_PAIRING_INFO"
 SYSTEM_VERSION = "SYSTEM_VERSION"

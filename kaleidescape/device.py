@@ -8,33 +8,41 @@ from typing import TYPE_CHECKING, TypeVar, cast
 
 from . import const
 from . import message as messages
-from .connection import EVENT_CONNECTION_MESSAGE, SIGNAL_CONNECTION_EVENT
-from .const import LOCAL_CPDID
-from .error import KaleidescapeError, MessageError
+from .connection import Connection
+from .dispatcher import Dispatcher
 
 if TYPE_CHECKING:
-    from .connection import Connection
-    from .dispatcher import Dispatcher, Signal
-    from .kaleidescape import Kaleidescape
+    from .dispatcher import Signal
     from .message import Request, Response
 
     RequestType = TypeVar("RequestType", bound=Request)
 
 
 class Device:
-    """Class representing a hardware device.
+    """Class representing hardware.
 
-    Provides commands for changing the state of the device. Also handles mirroring
+    Provide commands for changing the state of the device. Also handles mirroring
     device state by monitoring system events.
     """
 
     def __init__(
-        self, kaleidescape: Kaleidescape, device_id: str = LOCAL_CPDID
+        self,
+        host: str,
+        *,
+        port: int = const.DEFAULT_PROTOCOL_PORT,
+        timeout: float = const.DEFAULT_PROTOCOL_TIMEOUT,
+        reconnect: bool = True,
+        reconnect_delay: float = const.DEFAULT_RECONNECT_DELAY,
     ) -> None:
-        """Initializes device."""
-        self._connection = kaleidescape.connection
-        self._dispatcher = kaleidescape.dispatcher
-        self._device_id = device_id
+        """Initialize device."""
+        self._host = host
+        self._port = port
+        self._timeout = timeout
+        self._reconnect_enabled = reconnect
+        self._reconnect_delay = reconnect_delay
+
+        self._dispatcher = Dispatcher()
+        self._connection = Connection(self._dispatcher, self._handle_event)
 
         self.system = System()
         self.power = Power()
@@ -42,219 +50,23 @@ class Device:
         self.movie = Movie()
         self.automation = Automation()
 
-        # self._device_id will ALWAYS be the local device id (01) for the the local
-        # device, or the #serialnumber for all other devices.
-        if device_id == LOCAL_CPDID:
-            pass
-        elif device_id[0] == "#":
-            self.system.serial_number = device_id[1:]
-        else:
-            raise KaleidescapeError("Invalid device_id: " + device_id)
-
         self._signal: Signal | None = None
-        self._disabled: bool = True
-        self.enable()
 
-    @property
-    def connection(self) -> Connection:
-        """Returns connection instance."""
-        return self._connection
-
-    @property
-    def dispatcher(self) -> Dispatcher:
-        """Returns dispatcher instance."""
-        return self._dispatcher
-
-    @property
-    def disabled(self) -> bool:
-        """Returns disabled state for the device."""
-        return self._disabled
-
-    @property
-    def is_local(self) -> bool:
-        """Returns if this device is the local one.
-
-        The local device is the device being directly communicated with over the TCP/IP
-        network. Hardware devices that are not the local device are communicated with
-        via command routing through this device.
-        """
-        return self._device_id == LOCAL_CPDID
-
-    @property
-    def device_id(self) -> str:
-        """Returns logical controller device identifier."""
-        return self._device_id
-
-    @property
-    def cpdid(self) -> str:
-        """Returns hardware assigned device cpdid.
-
-        Default is None unless the user has assigned one in the Kaleidescape
-        configuration.
-        """
-        return self.system.cpdid
-
-    @property
-    def serial_number(self) -> str:
-        """Returns hardware device's serial number."""
-        return self.system.serial_number
-
-    @property
-    def is_connected(self) -> bool:
-        """Returns current state of the connection."""
-        return (
-            self._connection.state == const.STATE_CONNECTED and self._disabled is False
-        )
-
-    @property
-    def is_server_only(self) -> bool:
-        """Returns if device has no movie zone (Terra, 1U, 3U, etc)."""
-        return self.system.movie_zones == 0
-
-    @property
-    def is_movie_player(self) -> bool:
-        """Returns if device has a movie zone."""
-        return self.system.movie_zones > 0
-
-    @property
-    def is_music_player(self) -> bool:
-        """Returns if device has a music zone."""
-        return self.system.music_zones - self.system.movie_zones > 0
-
-    def has_device_id(self, device_id: str) -> bool:
-        """Returns if this device has device_id."""
-        return device_id in list(
-            filter(None, [self._device_id, f"#{self.serial_number}", self.cpdid])
-        )
-
-    def enable(self) -> None:
-        """Enables device, allowing it to send commands and receive events."""
-        if not self._disabled:
+    async def connect(self):
+        """Connect to hardware."""
+        if self.is_connected:
             return
-        self._disabled = False
-        self._signal = self._dispatcher.connect(
-            SIGNAL_CONNECTION_EVENT, self._handle_event
+
+        # Convert hostname to ip (if not already)
+        self._host = await Connection.resolve(self._host)
+
+        await self._connection.connect(
+            self._host,
+            port=self._port,
+            timeout=self._timeout,
+            reconnect=self._reconnect_enabled,
+            reconnect_delay=self._reconnect_delay,
         )
-
-    def disable(self) -> None:
-        """Disables device, preventing it from sending commands and receiving events.
-
-        Devices are marked as disabled by the controller.
-        """
-        if self._disabled or self.is_local:
-            return
-        self._disabled = True
-        self.close()
-        self.power.state = const.DEVICE_POWER_STATE_STANDBY
-        self.power.readiness = const.SYSTEM_READINESS_STATE_IDLE
-
-    def close(self) -> None:
-        """Closes device resources."""
-        if self._signal:
-            self._signal.disconnect()
-            self._signal = None
-
-    async def get_system_pairing_info(self) -> messages.SystemPairingInfo:
-        """Returns a list the serial numbers in the system."""
-        res = await self._send(messages.GetSystemPairingInfo)
-        return cast(messages.SystemPairingInfo, res)
-
-    async def get_friendly_system_name(self) -> str:
-        """Returns friendly system name."""
-        res = await self._send(messages.GetFriendlySystemName)
-        return cast(messages.FriendlySystemName, res).field
-
-    async def get_available_serial_numbers(self) -> list[str]:
-        """Returns a list the serial numbers in the system."""
-        res = await self._send(messages.GetAvailableDevicesBySerialNumber)
-        return (cast(messages.AvailableDevicesBySerialNumber, res)).field
-
-    async def get_available_devices(self) -> list[str]:
-        """Returns a list of cpdid's in the system that have cpdid's assigned."""
-        res = await self._send(messages.GetAvailableDevices)
-        return (cast(messages.AvailableDevices, res)).field
-
-    async def enable_events(self, device_id: str) -> None:
-        """Sends enable events command for device with id."""
-        assert device_id != LOCAL_CPDID
-        await self._send(messages.EnableEvents, 0, [device_id])
-
-    async def leave_standby(self) -> None:
-        """Sends leave standby command."""
-        await self._send(messages.LeaveStandby)
-
-    async def enter_standby(self) -> None:
-        """Sends enter standby command."""
-        await self._send(messages.EnterStandby)
-
-    async def play(self) -> None:
-        """Sends play command."""
-        await self._send(messages.Play)
-
-    async def pause(self) -> None:
-        """Sends pause command."""
-        await self._send(messages.Pause)
-
-    async def stop(self) -> None:
-        """Sends stop command."""
-        await self._send(messages.Stop)
-
-    async def next(self) -> None:
-        """Sends next command."""
-        await self._send(messages.Next)
-
-    async def previous(self) -> None:
-        """Sends previous command."""
-        await self._send(messages.Previous)
-
-    async def replay(self) -> None:
-        """Sends replay command."""
-        await self._send(messages.Replay)
-
-    async def scan_forward(self) -> None:
-        """Sends scan_forward command."""
-        await self._send(messages.ScanForward)
-
-    async def scan_reverse(self) -> None:
-        """Sends scan_reverse command."""
-        await self._send(messages.ScanReverse)
-
-    async def select(self) -> None:
-        """Sends select command."""
-        await self._send(messages.Select)
-
-    async def up(self) -> None: # pylint: disable=invalid-name
-        """Sends up command."""
-        await self._send(messages.Up)
-
-    async def down(self) -> None:
-        """Sends down command."""
-        await self._send(messages.Down)
-
-    async def left(self) -> None:
-        """Sends left command."""
-        await self._send(messages.Left)
-
-    async def right(self) -> None:
-        """Sends right command."""
-        await self._send(messages.Right)
-
-    async def cancel(self) -> None:
-        """Sends cancel command."""
-        await self._send(messages.Cancel)
-
-    async def go_movie_covers(self) -> None:
-        """Sends list command."""
-        await self._send(messages.GoMovieCovers)
-
-    async def menu_toggle(self) -> None:
-        """Sends menu toggle command."""
-        await self._send(messages.MenuToggle)
-
-    async def refresh_device(self) -> None:
-        """Syncs device state."""
-        if self.disabled:
-            raise MessageError(const.ERROR_DEVICE_UNAVAILABLE)
 
         result = iter(
             await asyncio.gather(
@@ -278,12 +90,19 @@ class Device:
             # Server only devices don't support this call
             self._update_friendly_name(await self._get_friendly_name())
 
-    async def refresh_state(self) -> None:
-        """Syncs device state."""
-        if self.disabled:
-            raise MessageError(const.ERROR_DEVICE_UNAVAILABLE)
+    async def disconnect(self) -> None:
+        """Disconnect from hardware."""
+        if not self.is_connected:
+            return
 
-        if self.is_server_only or self.power.state != const.DEVICE_POWER_STATE_ON:
+        await self._connection.disconnect()
+
+    async def refresh(self) -> None:
+        """Sync device state."""
+        if not self.is_connected:
+            await self.connect()
+
+        if self.power.state != const.DEVICE_POWER_STATE_ON:
             return
 
         result = iter(
@@ -314,8 +133,100 @@ class Device:
             res2 = await self._get_cinemascape_mask()
             self._update_cinemascape_mask(cast(messages.CinemascapeMask, res2))
 
+    async def get_system_pairing_info(self) -> messages.SystemPairingInfo:
+        """Return a list the serial numbers in the system."""
+        res = await self._send(messages.GetSystemPairingInfo)
+        return cast(messages.SystemPairingInfo, res)
+
+    async def get_friendly_system_name(self) -> str:
+        """Return friendly system name."""
+        res = await self._send(messages.GetFriendlySystemName)
+        return cast(messages.FriendlySystemName, res).field
+
+    async def get_available_serial_numbers(self) -> list[str]:
+        """Return a list the serial numbers in the system."""
+        res = await self._send(messages.GetAvailableDevicesBySerialNumber)
+        return (cast(messages.AvailableDevicesBySerialNumber, res)).field
+
+    async def get_available_devices(self) -> list[str]:
+        """Return a list of cpdid's in the system that have cpdid's assigned."""
+        res = await self._send(messages.GetAvailableDevices)
+        return (cast(messages.AvailableDevices, res)).field
+
+    async def leave_standby(self) -> None:
+        """Send leave standby command."""
+        await self._send(messages.LeaveStandby)
+
+    async def enter_standby(self) -> None:
+        """Send enter standby command."""
+        await self._send(messages.EnterStandby)
+
+    async def play(self) -> None:
+        """Send play command."""
+        await self._send(messages.Play)
+
+    async def pause(self) -> None:
+        """Send pause command."""
+        await self._send(messages.Pause)
+
+    async def stop(self) -> None:
+        """Send stop command."""
+        await self._send(messages.Stop)
+
+    async def next(self) -> None:
+        """Send next command."""
+        await self._send(messages.Next)
+
+    async def previous(self) -> None:
+        """Send previous command."""
+        await self._send(messages.Previous)
+
+    async def replay(self) -> None:
+        """Send replay command."""
+        await self._send(messages.Replay)
+
+    async def scan_forward(self) -> None:
+        """Send scan_forward command."""
+        await self._send(messages.ScanForward)
+
+    async def scan_reverse(self) -> None:
+        """Send scan_reverse command."""
+        await self._send(messages.ScanReverse)
+
+    async def select(self) -> None:
+        """Send select command."""
+        await self._send(messages.Select)
+
+    async def up(self) -> None:  # pylint: disable=invalid-name
+        """Send up command."""
+        await self._send(messages.Up)
+
+    async def down(self) -> None:
+        """Send down command."""
+        await self._send(messages.Down)
+
+    async def left(self) -> None:
+        """Send left command."""
+        await self._send(messages.Left)
+
+    async def right(self) -> None:
+        """Send right command."""
+        await self._send(messages.Right)
+
+    async def cancel(self) -> None:
+        """Send cancel command."""
+        await self._send(messages.Cancel)
+
+    async def go_movie_covers(self) -> None:
+        """Send list command."""
+        await self._send(messages.GoMovieCovers)
+
+    async def menu_toggle(self) -> None:
+        """Send menu toggle command."""
+        await self._send(messages.MenuToggle)
+
     async def _get_device_info(self) -> messages.DeviceInfo:
-        """Returns device info."""
+        """Return device info."""
         res = await self._send(messages.GetDeviceInfo)
         return cast(messages.DeviceInfo, res)
 
@@ -325,7 +236,7 @@ class Device:
         self.system.ip_address = res.field_ip
 
     async def _get_system_version(self) -> messages.SystemVersion:
-        """Returns system version."""
+        """Return system version."""
         res = await self._send(messages.GetSystemVersion)
         return cast(messages.SystemVersion, res)
 
@@ -334,7 +245,7 @@ class Device:
         self.system.kos_version = res.field_kos
 
     async def _get_num_zones(self) -> messages.NumZones:
-        """Returns number of zones."""
+        """Return number of zones."""
         res = await self._send(messages.GetNumZones)
         return cast(messages.NumZones, res)
 
@@ -343,7 +254,7 @@ class Device:
         self.system.music_zones = res.field_music_zones
 
     async def _get_device_type_name(self) -> messages.DeviceTypeName:
-        """Returns device type name."""
+        """Return device type name."""
         res = await self._send(messages.GetDeviceTypeName)
         return cast(messages.DeviceTypeName, res)
 
@@ -351,7 +262,7 @@ class Device:
         self.system.type = res.field
 
     async def _get_device_power_state(self) -> messages.DevicePowerState:
-        """Returns power state."""
+        """Return power state."""
         res = await self._send(messages.GetDevicePowerState)
         return cast(messages.DevicePowerState, res)
 
@@ -360,7 +271,7 @@ class Device:
         self.power.zone = res.field_zone
 
     async def _get_system_readiness_state(self) -> messages.SystemReadinessState:
-        """Returns readiness state."""
+        """Return readiness state."""
         res = await self._send(messages.GetSystemReadinessState)
         return cast(messages.SystemReadinessState, res)
 
@@ -370,7 +281,7 @@ class Device:
         self.power.readiness = res.field
 
     async def _get_friendly_name(self) -> messages.FriendlyName:
-        """Returns friendly name."""
+        """Return friendly name."""
         res = await self._send(messages.GetFriendlyName)
         return cast(messages.FriendlyName, res)
 
@@ -378,7 +289,7 @@ class Device:
         self.system.friendly_name = res.field
 
     async def _get_ui_state(self) -> messages.UiState:
-        """Returns ui state."""
+        """Return ui state."""
         res = await self._send(messages.GetUiState)
         return cast(messages.UiState, res)
 
@@ -389,7 +300,7 @@ class Device:
         self.osd.ui_screensaver = res.field_screensaver
 
     async def _get_playing_title_name(self) -> messages.PlayingTitleName:
-        """Returns playing title name."""
+        """Return playing title name."""
         res = await self._send(messages.GetPlayingTitleName)
         return cast(messages.PlayingTitleName, res)
 
@@ -397,7 +308,7 @@ class Device:
         self.osd.title_name = res.field
 
     async def _get_highlighted_selection(self) -> messages.HighlightedSelection:
-        """Returns highlighted selection."""
+        """Return highlighted selection."""
         res = await self._send(messages.GetHighlightedSelection)
         return cast(messages.HighlightedSelection, res)
 
@@ -405,7 +316,7 @@ class Device:
         self.osd.highlighted = res.field
 
     async def _get_play_status(self) -> messages.PlayStatus:
-        """Returns play status."""
+        """Return play status."""
         res = await self._send(messages.GetPlayStatus)
         return cast(messages.PlayStatus, res)
 
@@ -422,7 +333,7 @@ class Device:
     async def get_content_details(
         self, handle: str, passcode: str = None
     ) -> messages.ContentDetailsOverview:
-        """Returns content details for the currently selected title."""
+        """Return content details for the currently selected title."""
         responses: list[Response] = await self._send_multi(
             messages.GetContentDetails, 0, [handle, passcode if passcode else ""]
         )
@@ -453,7 +364,7 @@ class Device:
         self.movie.aspect_ratio = res.field_aspect_ratio if res else ""
 
     async def _get_movie_location(self) -> messages.GetMovieLocation:
-        """Returns movie location."""
+        """Return movie location."""
         res = await self._send(messages.GetMovieLocation)
         return cast(messages.GetMovieLocation, res)
 
@@ -461,7 +372,7 @@ class Device:
         self.automation.movie_location = res.field
 
     async def _get_movie_media_type(self) -> messages.MovieMediaType:
-        """Returns movie media type."""
+        """Return movie media type."""
         res = await self._send(messages.GetMovieMediaType)
         return cast(messages.MovieMediaType, res)
 
@@ -469,7 +380,7 @@ class Device:
         self.movie.media_type = res.field
 
     async def _get_video_color(self) -> messages.VideoColor:
-        """Returns video color."""
+        """Return video color."""
         res = await self._send(messages.GetVideoColor)
         return cast(messages.VideoColor, res)
 
@@ -480,7 +391,7 @@ class Device:
         self.automation.video_color_sampling = res.field_sampling
 
     async def _get_video_mode(self) -> messages.VideoMode:
-        """Returns video mode."""
+        """Return video mode."""
         res = await self._send(messages.GetVideoMode)
         return cast(messages.VideoMode, res)
 
@@ -488,7 +399,7 @@ class Device:
         self.automation.video_mode = res.field
 
     async def _get_screen_mask(self) -> messages.ScreenMask:
-        """Returns screen mask."""
+        """Return screen mask."""
         res = await self._send(messages.GetScreenMask)
         return cast(messages.ScreenMask, res)
 
@@ -501,7 +412,7 @@ class Device:
         self.automation.screen_mask_bottom_mask_abs = res.field_bottom_mask_abs
 
     async def _get_screen_mask2(self) -> messages.ScreenMask2:
-        """Returns screen mask2."""
+        """Return screen mask2."""
         res = await self._send(messages.GetScreenMask2)
         return cast(messages.ScreenMask2, res)
 
@@ -512,7 +423,7 @@ class Device:
         self.automation.screen_mask2_bottom_calibrated = res.field_bottom_calibrated
 
     async def _get_cinemascape_mode(self) -> messages.CinemascapeMode:
-        """Returns cinemascape mode."""
+        """Return cinemascape mode."""
         res = await self._send(messages.GetCinemascapeMode)
         return cast(messages.CinemascapeMode, res)
 
@@ -520,7 +431,7 @@ class Device:
         self.automation.cinemascape_mode = res.field
 
     async def _get_cinemascape_mask(self) -> messages.CinemascapeMask:
-        """Returns cinemascape mask."""
+        """Return cinemascape mask."""
         res = await self._send(messages.GetCinemascapeMask)
         return cast(messages.CinemascapeMask, res)
 
@@ -530,7 +441,7 @@ class Device:
     async def _send(
         self, request: type[RequestType], zone: int = 0, fields: list[str] | None = None
     ) -> Response:
-        """Sends request to hardware device, returning a single response."""
+        """Send request to hardware, returning a single response."""
         res = await self._send_multi(request, zone, fields)
         assert len(res) == 1
         return res[0]
@@ -538,29 +449,17 @@ class Device:
     async def _send_multi(
         self, request: type[RequestType], zone: int = 0, fields: list[str] | None = None
     ) -> list[Response]:
-        """Sends request to hardware device, returning one or more responses."""
-        req = request(self.device_id, zone, fields)
+        """Send request to hardware, returning one or more responses."""
+        req = request(zone, fields)
         return await req.send(self._connection)
 
-    async def _handle_event(self, event: str, *args) -> None:
-        """Handles events sent by the hardware device."""
-        if self.disabled:
-            return
-
-        # Ignore connect and disconnect messages, those are handled by the controller.
-        if event != EVENT_CONNECTION_MESSAGE:
-            return
-
-        response: Response = args[0]
-
-        # Ignore events not addressed to this device
-        if self.has_device_id(response.device_id) is False:
-            return
+    async def _handle_event(self, response: Response) -> None:
+        """Handle events sent by hardware."""
 
         # System
         if isinstance(response, messages.DevicePowerState):
             self._update_device_power_state(response)
-            await self.refresh_state()
+            await self.refresh()
         elif isinstance(response, messages.SystemReadinessState):
             self._update_system_readiness_state(response)
         elif isinstance(response, messages.FriendlyName):
@@ -608,9 +507,52 @@ class Device:
         elif isinstance(response, messages.CinemascapeMask):
             self._update_cinemascape_mask(response)
 
-        self._dispatcher.send(
-            const.SIGNAL_DEVICE_EVENT, response.device_id, response.name
-        )
+        self._dispatcher.send(response.name)
+
+    @property
+    def dispatcher(self) -> Dispatcher:
+        """Return dispatcher instance."""
+        return self._dispatcher
+
+    @property
+    def connection(self) -> Connection:
+        """Return connection instance."""
+        return self._connection
+
+    @property
+    def host(self) -> str:
+        """Return connection host."""
+        return self._host
+
+    @property
+    def port(self) -> int:
+        """Return connection port."""
+        return self._port
+
+    @property
+    def serial_number(self) -> str:
+        """Return hardware's serial number."""
+        return self.system.serial_number
+
+    @property
+    def is_connected(self) -> bool:
+        """Return current state of the connection."""
+        return self._connection.state == const.STATE_CONNECTED
+
+    @property
+    def is_server_only(self) -> bool:
+        """Return if device has no movie zone (Terra, 1U, 3U, etc)."""
+        return self.system.movie_zones == 0
+
+    @property
+    def is_movie_player(self) -> bool:
+        """Return if device has a movie zone."""
+        return self.system.movie_zones > 0
+
+    @property
+    def is_music_player(self) -> bool:
+        """Return if device has a music zone."""
+        return self.system.music_zones - self.system.movie_zones > 0
 
 
 @dataclass

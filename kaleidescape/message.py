@@ -8,6 +8,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from . import const
+from .const import LOCAL_CPDID
 from .error import KaleidescapeError, MessageError, MessageParseError
 
 if TYPE_CHECKING:
@@ -109,12 +110,8 @@ class MessageParser:
                     field += "\\"
                 elif char == ":":
                     field += ":"
-                elif (
-                    # Kaleidescape bug: newline chars are prefixed with '\', instead
-                    # of being encoded
-                    char
-                    == "\n"
-                ):
+                elif char == "\n":
+                    # Protocol bug: newline chars are not coming in encoded
                     field += "\n"
                 elif char == "\r":
                     # Same bug as above
@@ -170,7 +167,7 @@ class Message:
 
     def __init__(
         self,
-        device_id: str,
+        device_id: str = LOCAL_CPDID,
         zone: int = 0,
         seq: int = 0,
         status: int = 0,
@@ -238,10 +235,10 @@ class Request(Message):
 
     log_invalid_request: bool = True
 
-    def __init__(self, device_id: str, zone: int = 0, fields: list[str] | None = None):
+    def __init__(self, zone: int = 0, fields: list[str] | None = None):
         """Initializes request."""
         super().__init__(
-            device_id, zone, fields=fields if fields is not None else fields
+            LOCAL_CPDID, zone, fields=fields if fields is not None else fields
         )
 
         self.seq = -1

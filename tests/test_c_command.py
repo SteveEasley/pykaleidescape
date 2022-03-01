@@ -8,16 +8,13 @@ import pytest
 
 from kaleidescape import const
 from kaleidescape import message as messages
-from kaleidescape.connection import (
-    EVENT_CONNECTION_CONNECTED,
-    EVENT_CONNECTION_DISCONNECTED,
-    Connection,
-)
-from kaleidescape.const import LOCAL_CPDID
+from kaleidescape.connection import Connection
+
+from kaleidescape.const import LOCAL_CPDID, STATE_CONNECTED, STATE_DISCONNECTED
 from kaleidescape.dispatcher import Dispatcher
 from kaleidescape.error import KaleidescapeError, MessageError
 
-from . import connection_signal
+from . import create_signal
 from .emulator import Emulator
 
 # pylint: disable=unused-argument
@@ -26,7 +23,7 @@ from .emulator import Emulator
 @pytest.mark.asyncio
 async def test_command_succeeds(emulator: Emulator, connection: Connection):
     """Test command succeeds."""
-    req = messages.GetAvailableDevices(LOCAL_CPDID)
+    req = messages.GetAvailableDevices()
     res = cast(messages.AvailableDevices, (await req.send(connection))[0])
     assert res.field == [LOCAL_CPDID]
 
@@ -40,7 +37,7 @@ async def test_command_fails(emulator: Emulator, connection: Connection):
         (const.ERROR_DEVICE_UNAVAILABLE, messages.AvailableDevices.name),
     )
     with pytest.raises(MessageError) as err:
-        req = messages.GetAvailableDevices(LOCAL_CPDID)
+        req = messages.GetAvailableDevices()
         await req.send(connection)
     assert const.RESPONSE_ERROR[const.ERROR_DEVICE_UNAVAILABLE] in str(err.value)
 
@@ -54,7 +51,7 @@ async def test_commands_fail_when_disconnected(emulator: Emulator):
     await connection.disconnect()
     assert connection.state == const.STATE_DISCONNECTED
     with pytest.raises(KaleidescapeError) as err:
-        req = messages.GetAvailableDevices(LOCAL_CPDID)
+        req = messages.GetAvailableDevices()
         await req.send(connection)
     assert str(err.value) == "Not connected to device"
 
@@ -65,12 +62,12 @@ async def test_reconnect_during_command(emulator: Emulator):
     dispatcher = Dispatcher()
     connection = Connection(dispatcher)
 
-    connect_signal = connection_signal(dispatcher, EVENT_CONNECTION_CONNECTED)
-    disconnect_signal = connection_signal(dispatcher, EVENT_CONNECTION_DISCONNECTED)
+    connect_signal = create_signal(dispatcher, STATE_CONNECTED)
+    disconnect_signal = create_signal(dispatcher, STATE_DISCONNECTED)
 
     # Assert connection
     await connection.connect(
-        "127.0.0.1", port=10001, timeout=1, auto_reconnect=True, reconnect_delay=1
+        "127.0.0.1", port=10001, timeout=1, reconnect=True, reconnect_delay=1
     )
     await connect_signal.wait()
     assert connection.state == const.STATE_CONNECTED
@@ -82,7 +79,7 @@ async def test_reconnect_during_command(emulator: Emulator):
 
     # Assert command with orphaned connection times out
     with pytest.raises(KaleidescapeError) as err:
-        req = messages.GetAvailableDevices(LOCAL_CPDID)
+        req = messages.GetAvailableDevices()
         await req.send(connection)
     assert "Not connected to device" in str(err.value)
 
@@ -97,55 +94,27 @@ async def test_reconnect_during_command(emulator: Emulator):
 
 
 @pytest.mark.asyncio
-async def test_get_available_devices1(emulator: Emulator, connection: Connection):
+async def test_get_available_devices(emulator: Emulator, connection: Connection):
     """Test command."""
-    req = messages.GetAvailableDevices(LOCAL_CPDID)
-    res = cast(messages.AvailableDevices, (await req.send(connection))[0])
-    assert res.field == [LOCAL_CPDID]
-
-    req = messages.GetAvailableDevices("#00000000123A")
+    req = messages.GetAvailableDevices()
     res = cast(messages.AvailableDevices, (await req.send(connection))[0])
     assert res.field == [LOCAL_CPDID]
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("emulator", ["multi_device"], indirect=True)
-async def test_get_available_devices2(emulator: Emulator, connection: Connection):
-    """Test command with multi devices."""
-    req = messages.GetAvailableDevices(LOCAL_CPDID)
-    res = cast(messages.AvailableDevices, (await req.send(connection))[0])
-    assert res.field == [LOCAL_CPDID]
-
-    req = messages.GetAvailableDevices("#00000000123A")
-    res = cast(messages.AvailableDevices, (await req.send(connection))[0])
-    assert res.field == [LOCAL_CPDID]
-
-
-@pytest.mark.asyncio
-async def test_get_available_devices_by_serial_number1(
+async def test_get_available_devices_by_serial_number(
     emulator: Emulator, connection: Connection
 ):
     """Test command."""
-    req = messages.GetAvailableDevicesBySerialNumber(LOCAL_CPDID)
+    req = messages.GetAvailableDevicesBySerialNumber()
     res = cast(messages.AvailableDevicesBySerialNumber, (await req.send(connection))[0])
     assert res.field == ["00000000123A"]
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("emulator", ["multi_device"], indirect=True)
-async def test_get_available_devices_by_serial_number2(
-    emulator: Emulator, connection: Connection
-):
-    """Test command with multi devices."""
-    req = messages.GetAvailableDevicesBySerialNumber(LOCAL_CPDID)
-    res = cast(messages.AvailableDevicesBySerialNumber, (await req.send(connection))[0])
-    assert res.field == ["00000000123A", "00000000123B"]
-
-
-@pytest.mark.asyncio
-async def test_get_device_info1(emulator: Emulator, connection: Connection):
+async def test_get_device_info(emulator: Emulator, connection: Connection):
     """Test command with single device."""
-    req = messages.GetDeviceInfo(LOCAL_CPDID)
+    req = messages.GetDeviceInfo()
     res = cast(messages.DeviceInfo, (await req.send(connection))[0])
     assert res.field_serial_number == "00000000123A"
     assert res.field_cpdid == ""
@@ -157,7 +126,7 @@ async def test_concurrency(emulator: Emulator, connection: Connection):
     """Test command concurrency handling."""
     requests: list[messages.GetAvailableDevices] = []
     for _ in range(0, 12):
-        requests.append(messages.GetAvailableDevices(LOCAL_CPDID))
+        requests.append(messages.GetAvailableDevices())
 
     responses = await asyncio.gather(*[r.send(connection) for r in requests])
 
