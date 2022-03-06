@@ -230,6 +230,9 @@ class Connection:
             _LOGGER.error(err)
             raise KaleidescapeError(err)
 
+        wait = 0.01
+        retries = self.timeout * (1/wait)
+
         while request.seq < 0:
             try:
                 # Devices can only handle 10 concurrent requests. Find next available
@@ -238,7 +241,10 @@ class Connection:
                     (i for i in range(0, 10) if i not in self._pending_requests)
                 )
             except StopIteration:
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(wait)
+                retries = retries - 1
+                if retries == 0:
+                    raise ConnectionError
                 continue
 
         self._pending_requests[request.seq] = request
