@@ -3,7 +3,7 @@ Control Protocol."""
 
 from . import const
 from .device import Device
-from .error import KaleidescapeError
 from .dispatcher import Dispatcher
+from .error import KaleidescapeError
 
 __version__ = "2022.2.4"

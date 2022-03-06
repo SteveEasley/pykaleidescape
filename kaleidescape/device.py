@@ -52,7 +52,7 @@ class Device:
 
         self._signal: Signal | None = None
 
-    async def connect(self):
+    async def connect(self) -> None:
         """Connect to hardware."""
         if self.is_connected:
             return
