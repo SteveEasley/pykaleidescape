@@ -62,10 +62,10 @@ class Dispatcher:
         """Disconnect all signals."""
         self._signals.clear()
 
-    def _call_target(self, target: Callable, *args) -> Awaitable:
+    def _call_target(self, target: Callable, *args) -> Awaitable | None:
         check_target = target
         while isinstance(check_target, functools.partial):
             check_target = check_target.func
         if asyncio.iscoroutinefunction(check_target):
             return self._loop.create_task(target(*args))
-        return self._loop.run_in_executor(None, target, *args)
+        self._loop.call_soon(target, *args)
