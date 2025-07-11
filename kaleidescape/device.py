@@ -135,6 +135,7 @@ class Device:
         self._signal = self._dispatcher.connect(
             SIGNAL_CONNECTION_EVENT, self._handle_event
         )
+        asyncio.create_task(self.enableVolumeControl())
 
     def disable(self) -> None:
         """Disables device, preventing it from sending commands and receiving events.
@@ -198,6 +199,10 @@ class Device:
     async def stop(self) -> None:
         """Sends stop command."""
         await self._send(messages.Stop)
+
+    async def enableVolumeControl(self) -> None:
+        """Sends enable volume controls command."""
+        await self._send(messages.VolumeCapabilities)
 
     async def refresh_device(self) -> None:
         """Syncs device state."""
@@ -555,6 +560,20 @@ class Device:
             self._update_cinemascape_mode(response)
         elif isinstance(response, messages.CinemascapeMask):
             self._update_cinemascape_mask(response)
+
+        # User-defined events
+        elif isinstance(response, messages.UserDefinedEvent):
+            # User-defined event - dispatch with event type for better monitoring
+            self._dispatcher.send(
+                const.SIGNAL_DEVICE_EVENT, response.device_id, f"{response.name}:{response.event_type}"
+            )
+            return
+        else:
+            # Handle unregistered events - dispatch with raw data
+            self._dispatcher.send(
+                const.SIGNAL_DEVICE_EVENT, response.device_id, response.name, response
+            )
+            return
 
         self._dispatcher.send(
             const.SIGNAL_DEVICE_EVENT, response.device_id, response.name

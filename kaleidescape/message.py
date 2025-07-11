@@ -544,6 +544,12 @@ class ZoneCapabilities(Response):
         return self._fields[3] == "Y"
 
 
+class VolumeCapabilities(Request):
+    """Class for VOLUME_CAPABILITIES messages."""
+
+    name = f"SEND_EVENT:{const.NUM_ZONES}=15"
+
+
 class GetNumZones(Request):
     """Class for GET_NUM_ZONES messages."""
 
@@ -846,6 +852,22 @@ class HighlightedSelection(Response):
     def field(self) -> str:
         """Returns highlighted selection."""
         return self._fields[0]
+
+@register
+class UserDefinedEvent(Response):
+    """Class for USER_DEFINED_EVENT messages."""
+
+    name = const.USER_DEFINED_EVENT
+
+    @property
+    def event_type(self) -> str:
+        """Returns the specific user-defined event type."""
+        return self._fields[0] if self._fields else ""
+
+    @property
+    def field(self) -> str:
+        """Returns the event type field."""
+        return self.event_type
 
 
 class GetContentDetails(Request):
