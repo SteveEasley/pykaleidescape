@@ -135,7 +135,6 @@ class Device:
         self._signal = self._dispatcher.connect(
             SIGNAL_CONNECTION_EVENT, self._handle_event
         )
-        asyncio.create_task(self.enableVolumeControl())
 
     def disable(self) -> None:
         """Disables device, preventing it from sending commands and receiving events.
