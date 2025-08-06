@@ -97,6 +97,7 @@ class Device:
 
         await self._connection.disconnect()
 
+    # noinspection PyTypeChecker
     async def refresh(self) -> None:
         """Sync device state."""
         if not self.is_connected:
@@ -363,10 +364,10 @@ class Device:
         self.movie.country = res.field_country if res else ""
         self.movie.aspect_ratio = res.field_aspect_ratio if res else ""
 
-    async def _get_movie_location(self) -> messages.GetMovieLocation:
+    async def _get_movie_location(self) -> messages.MovieLocation:
         """Return movie location."""
         res = await self._send(messages.GetMovieLocation)
-        return cast(messages.GetMovieLocation, res)
+        return cast(messages.MovieLocation, res)
 
     def _update_movie_location(self, res: messages.MovieLocation) -> None:
         self.automation.movie_location = res.field

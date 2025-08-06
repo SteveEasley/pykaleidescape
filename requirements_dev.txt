@@ -1,0 +1,5 @@
+mypy==1.11.2
+pytest==8.3.3
+pytest-asyncio==0.24.0
+tox==4.20.0
+ruff==0.6.7

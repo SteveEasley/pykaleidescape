@@ -16,10 +16,12 @@ from .emulator import Emulator
 # pylint: disable=unused-argument
 
 
-def test_init():
+@pytest.mark.asyncio
+async def test_init():
     """Test init sets properties."""
     connection = Connection(Dispatcher())
     assert isinstance(connection.dispatcher, Dispatcher)
+    await connection.disconnect()
 
 
 @pytest.mark.asyncio
@@ -38,7 +40,7 @@ async def test_connect_fails():
 
 @pytest.mark.asyncio
 async def test_connect_timeout():
-    """Test connect fails when host not available."""
+    """Test connect timeout when host not available."""
     connection = Connection(Dispatcher())
     with pytest.raises(ConnectionError):
         await connection.connect("0.0.0.1", port=10001, timeout=1)
@@ -71,11 +73,13 @@ async def test_manual_disconnect(emulator: Emulator, connection: Connection):
     await connection.disconnect()
     await signal.wait()
     assert connection.state == STATE_DISCONNECTED
+    #await emulator.stop()
 
 
 @pytest.mark.asyncio
 async def test_event_disconnect(emulator: Emulator, connection: Connection):
     """Test connection error during event results in disconnected."""
+    assert connection.state == STATE_CONNECTED
     signal = create_signal(connection.dispatcher, STATE_DISCONNECTED)
     await emulator.stop()
     await signal.wait()

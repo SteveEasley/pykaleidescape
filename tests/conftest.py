@@ -2,31 +2,27 @@
 
 import asyncio
 
-import pytest
+import pytest_asyncio
 
 from kaleidescape.connection import Connection
 from kaleidescape.dispatcher import Dispatcher
 from tests.emulator import Emulator
 
 
-@pytest.fixture(name="emulator")
-def fixture_emulator(event_loop):
+@pytest_asyncio.fixture(name="emulator")
+async def fixture_emulator():
     """Fixture for creating a device emulator."""
     emulator = Emulator("127.0.0.1", port=10001)
-    event_loop.run_until_complete(emulator.start())
+    await emulator.start()
     yield emulator
-    event_loop.run_until_complete(emulator.stop())
+    await emulator.stop()
 
 
-@pytest.fixture(name="connection")
-def fixture_connection(event_loop):
+@pytest_asyncio.fixture(name="connection")
+async def fixture_connection():
     """Fixture for creating a connection to device."""
     connection = Connection(Dispatcher())
-    event_loop.run_until_complete(
-        connection.connect("127.0.0.1", port=10001, timeout=1)
-    )
+    await connection.connect("127.0.0.1", port=10001, timeout=1)
     yield connection
-    # Ensure work emulator loop can complete tasks
-    event_loop.run_until_complete(asyncio.sleep(0.01))
-    event_loop.run_until_complete(connection.disconnect())
-
+    await asyncio.sleep(0.01)
+    await connection.disconnect()

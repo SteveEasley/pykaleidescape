@@ -527,17 +527,17 @@ class ZoneCapabilities(Response):
 
     @property
     def field_movies(self) -> bool:
-        """Returns whether has movie zones."""
+        """Returns whether it has movie zones."""
         return self._fields[1] == "Y"
 
     @property
     def field_music(self) -> bool:
-        """Returns whether has music zones."""
+        """Returns whether it has music zones."""
         return self._fields[2] == "Y"
 
     @property
     def field_store(self) -> bool:
-        """Returns whether has store."""
+        """Returns whether it has store."""
         return self._fields[3] == "Y"
 
 

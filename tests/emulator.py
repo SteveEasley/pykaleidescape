@@ -293,9 +293,8 @@ class Emulator:
             await client.disconnect()
         self._clients.clear()
         self._server.close()
-        await self._server.wait_closed()
         self._server = None
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0)
         _LOGGER.debug("Stopped")
 
     def register_mock_command(

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import dns.asyncresolver
 import dns.exception
+from dns.resolver import Answer
 
 from . import const
 from .error import KaleidescapeError, MessageParseError, format_error
@@ -17,7 +18,6 @@ from .message import Response
 
 if TYPE_CHECKING:
     import dns.resolver
-    from dns.rdtypes.IN.A import A
 
     from .dispatcher import Dispatcher
     from .message import Request
@@ -194,7 +194,7 @@ class Connection:
             self._reconnect_task.cancel()
             try:
                 await self._reconnect_task
-            except:  # pylint: disable=bare-except
+            except:  # noqa: E722
                 # Ensure completes
                 pass
             self._reconnect_task = None
@@ -211,7 +211,7 @@ class Connection:
             self._response_handler_task.cancel()
             try:
                 await self._response_handler_task
-            except:  # pylint: disable=bare-except
+            except:  # noqa: E722
                 # Ensure completes
                 pass
             self._response_handler_task = None
@@ -281,7 +281,7 @@ class Connection:
             if use_mdns:
                 resolver.nameservers = ["224.0.0.251"]
                 resolver.port = 5353
-            answer: list[A] = await resolver.resolve(host, rdtype="A")
+            answer: Answer = await resolver.resolve(host, rdtype="A")
             if len(answer) == 0:
                 raise RuntimeError("Answer expected")
             return answer[0].to_text()
