@@ -52,9 +52,7 @@ async def test_get_available_devices(emulator: Emulator):
 
 
 @pytest.mark.asyncio
-async def test_get_available_serial_numbers(
-    emulator: Emulator
-):
+async def test_get_available_serial_numbers(emulator: Emulator):
     """Test get available devices."""
     device = Device("127.0.0.1", port=10001)
     await device.connect()
@@ -95,9 +93,7 @@ async def test_refresh_state(emulator: Emulator):
     assert device.osd.ui_screen == const.UI_STATE_SCREEN_UNKNOWN
     assert device.automation.movie_location == const.MOVIE_LOCATION_NONE
 
-    signal = create_signal(
-        device.dispatcher, messages.DevicePowerState.name
-    )
+    signal = create_signal(device.dispatcher, messages.DevicePowerState.name)
 
     emulator.register_mock_command(
         ("01",),
@@ -124,9 +120,7 @@ async def test_events(emulator: Emulator):
     device = Device("127.0.0.1", port=10001)
     await device.connect()
     # Setup to listen for signal emit
-    signal = create_signal(
-        device.dispatcher, messages.SystemReadinessState.name
-    )
+    signal = create_signal(device.dispatcher, messages.SystemReadinessState.name)
     # Produce a signal
     await emulator.send_event(
         [LOCAL_CPDID], SUCCESS, messages.SystemReadinessState.name, ["0"]

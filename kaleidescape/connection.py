@@ -231,7 +231,7 @@ class Connection:
             raise KaleidescapeError(err)
 
         wait = 0.01
-        retries = self.timeout * (1/wait)
+        retries = self.timeout * (1 / wait)
 
         while request.seq < 0:
             try:

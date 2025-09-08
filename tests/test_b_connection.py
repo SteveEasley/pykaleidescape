@@ -1,4 +1,5 @@
 """Tests for connection module."""
+
 import asyncio
 from unittest.mock import MagicMock, patch
 
@@ -73,7 +74,7 @@ async def test_manual_disconnect(emulator: Emulator, connection: Connection):
     await connection.disconnect()
     await signal.wait()
     assert connection.state == STATE_DISCONNECTED
-    #await emulator.stop()
+    # await emulator.stop()
 
 
 @pytest.mark.asyncio
@@ -149,7 +150,7 @@ async def test_resolve_succeeds(emulator: Emulator):
         mock.return_value[0].to_text.side_effect = [
             "127.0.0.1",  # 1st call: mDSN succeeds
             dns.exception.DNSException,  # 2nd call: mDSN fails
-            "127.0.0.1"  # 2nd call: DSN succeeds
+            "127.0.0.1",  # 2nd call: DSN succeeds
         ]
         # First call simulates mDNS lookup
         assert await Connection.resolve("my-kaleidescape") == "127.0.0.1"

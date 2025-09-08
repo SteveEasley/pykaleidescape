@@ -21,4 +21,3 @@ def create_signal(dispatcher: Dispatcher, target_event: str) -> asyncio.Event:
     dispatcher.connect(handler)
 
     return trigger
-
