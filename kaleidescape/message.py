@@ -541,6 +541,12 @@ class ZoneCapabilities(Response):
         return self._fields[3] == "Y"
 
 
+class EnableVolumeEvents(Request):
+    """Request that enables volume/user-defined events from the device."""
+
+    name = f"SEND_EVENT:{const.VOLUME_CAPABILITIES}=15"
+
+
 class GetNumZones(Request):
     """Class for GET_NUM_ZONES messages."""
 
@@ -843,6 +849,23 @@ class HighlightedSelection(Response):
     def field(self) -> str:
         """Returns highlighted selection."""
         return self._fields[0]
+
+
+@register
+class UserDefinedEvent(Response):
+    """Class for USER_DEFINED_EVENT messages."""
+
+    name = const.USER_DEFINED_EVENT
+
+    @property
+    def event_type(self) -> str:
+        """Returns the user-defined event type (first field)."""
+        return self._fields[0] if self._fields else ""
+
+    @property
+    def data(self) -> list[str]:
+        """Returns remaining payload fields for the event."""
+        return self._fields[1:]
 
 
 class GetContentDetails(Request):

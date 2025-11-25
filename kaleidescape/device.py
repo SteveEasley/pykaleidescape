@@ -174,6 +174,16 @@ class Device:
         """Send stop command."""
         await self._send(messages.Stop)
 
+    async def enable_volume_events(self) -> None:
+        """Request the player to publish volume/user-defined events.
+
+        The device only emits volume-related user-defined events after the
+        `SEND_EVENT:VOLUME_CAPABILITIES=15` command is issued. Safe to call
+        repeatedly; the device treats it as idempotent.
+        """
+
+        await self._send(messages.EnableVolumeEvents)
+
     async def next(self) -> None:
         """Send next command."""
         await self._send(messages.Next)
@@ -456,7 +466,8 @@ class Device:
 
     async def _handle_event(self, response: Response) -> None:
         """Handle events sent by hardware."""
-
+        dispatch_msg = response.name
+        
         # System
         if isinstance(response, messages.DevicePowerState):
             self._update_device_power_state(response)
@@ -508,8 +519,12 @@ class Device:
         elif isinstance(response, messages.CinemascapeMask):
             self._update_cinemascape_mask(response)
 
-        self._dispatcher.send(response.name)
+        # User-defined / (e.g. volume events)
+        elif isinstance(response, messages.UserDefinedEvent):
+            dispatch_msg = f"{response.name}:{response.event_type}"
 
+        self._dispatcher.send(dispatch_msg)
+    
     @property
     def dispatcher(self) -> Dispatcher:
         """Return dispatcher instance."""
