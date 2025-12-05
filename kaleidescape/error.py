@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Mapping
 
 from . import const
 
-DEFAULT_MESSAGES = {
+DEFAULT_MESSAGES: Mapping[type[BaseException], str] = {
     asyncio.TimeoutError: "Command timed out",
     ConnectionError: "Connection error",
     BrokenPipeError: "Broken pipe",
@@ -17,7 +18,7 @@ DEFAULT_MESSAGES = {
 }
 
 
-def format_error(err: Exception | asyncio.TimeoutError) -> str:
+def format_error(err: BaseException) -> str:
     """Formats error message based on a base error."""
     msg: str | None = str(err)
     if msg == "":
@@ -36,7 +37,7 @@ class SystemNotFoundError(Exception):
 class MessageError(KaleidescapeError, RuntimeError):
     """Errors from the Kaleidescape Control Protocol."""
 
-    def __init__(self, code: int, message: str = None):
+    def __init__(self, code: int, message: str | None = None):
         self.code = code
         self.error = const.RESPONSE_ERROR[code]
         super().__init__(self.error + (f" for command '{message}'" if message else ""))

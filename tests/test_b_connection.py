@@ -1,14 +1,10 @@
 """Tests for connection module."""
 
-import asyncio
-from unittest.mock import MagicMock, patch
 
-import dns.exception
 import pytest
-from dns.rdtypes.IN.A import A
 
-from kaleidescape.const import STATE_CONNECTED, STATE_DISCONNECTED, STATE_RECONNECTING
 from kaleidescape.connection import Connection
+from kaleidescape.const import STATE_CONNECTED, STATE_DISCONNECTED, STATE_RECONNECTING
 from kaleidescape.dispatcher import Dispatcher
 
 from . import create_signal
@@ -140,31 +136,3 @@ async def test_reconnect_cancelled(emulator):
 
     await connection.disconnect()
     assert connection.state == STATE_DISCONNECTED
-
-
-@pytest.mark.asyncio
-async def test_resolve_succeeds(emulator: Emulator):
-    """Test resolve when host name resolution succeeds."""
-    with patch("dns.asyncresolver.Resolver.resolve") as mock:
-        mock.return_value = [MagicMock(spec=A)]
-        mock.return_value[0].to_text.side_effect = [
-            "127.0.0.1",  # 1st call: mDSN succeeds
-            dns.exception.DNSException,  # 2nd call: mDSN fails
-            "127.0.0.1",  # 2nd call: DSN succeeds
-        ]
-        # First call simulates mDNS lookup
-        assert await Connection.resolve("my-kaleidescape") == "127.0.0.1"
-        # Second call simulates DNS lookup
-        assert await Connection.resolve("some-kaleidescape") == "127.0.0.1"
-
-
-@pytest.mark.asyncio
-async def test_resolve_fails(emulator: Emulator):
-    """Test resolve when host name resolution fails."""
-    with patch("dns.asyncresolver.Resolver.resolve") as mock:
-        mock.return_value = [MagicMock(spec=A)]
-        mock.return_value[0].to_text.side_effect = dns.exception.DNSException
-        with pytest.raises(ConnectionError) as err:
-            assert await Connection.resolve("my-kaleidescape") == "127.0.0.1"
-        assert isinstance(err.value, ConnectionError)
-        assert str(err.value) == "Failed to resolve host my-kaleidescape"

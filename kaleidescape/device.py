@@ -68,23 +68,23 @@ class Device:
             reconnect_delay=self._reconnect_delay,
         )
 
-        result = iter(
-            await asyncio.gather(
-                self._get_device_info(),
-                self._get_system_version(),
-                self._get_device_type_name(),
-                self._get_num_zones(),
-                self._get_device_power_state(),
-                self._get_system_readiness_state(),
-            )
+        results = await asyncio.gather(
+            self._get_device_info(),
+            self._get_system_version(),
+            self._get_device_type_name(),
+            self._get_num_zones(),
+            self._get_device_power_state(),
+            self._get_system_readiness_state(),
         )
 
-        self._update_device_info(next(result))
-        self._update_system_version(next(result))
-        self._update_device_type_name(next(result))
-        self._update_num_zones(next(result))
-        self._update_device_power_state(next(result))
-        self._update_system_readiness_state(next(result))
+        self._update_device_info(cast(messages.DeviceInfo, results[0]))
+        self._update_system_version(cast(messages.SystemVersion, results[1]))
+        self._update_device_type_name(cast(messages.DeviceTypeName, results[2]))
+        self._update_num_zones(cast(messages.NumZones, results[3]))
+        self._update_device_power_state(cast(messages.DevicePowerState, results[4]))
+        self._update_system_readiness_state(
+            cast(messages.SystemReadinessState, results[5])
+        )
 
         if self.is_movie_player:
             # Server only devices don't support this call
@@ -106,25 +106,23 @@ class Device:
         if self.power.state != const.DEVICE_POWER_STATE_ON:
             return
 
-        result = iter(
-            await asyncio.gather(
-                self._get_ui_state(),
-                self._get_highlighted_selection(),
-                self._get_play_status(),
-                self._get_movie_location(),
-                self._get_screen_mask(),
-                self._get_screen_mask2(),
-                self._get_cinemascape_mode(),
-            )
+        results = await asyncio.gather(
+            self._get_ui_state(),
+            self._get_highlighted_selection(),
+            self._get_play_status(),
+            self._get_movie_location(),
+            self._get_screen_mask(),
+            self._get_screen_mask2(),
+            self._get_cinemascape_mode(),
         )
 
-        self._update_ui_state(next(result))
-        self._update_highlighted_selection(next(result))
-        self._update_play_status(next(result))
-        self._update_movie_location(next(result))
-        self._update_screen_mask(next(result))
-        self._update_screen_mask2(next(result))
-        self._update_cinemascape_mode(next(result))
+        self._update_ui_state(cast(messages.UiState, results[0]))
+        self._update_highlighted_selection(cast(messages.HighlightedSelection, results[1]))
+        self._update_play_status(cast(messages.PlayStatus, results[2]))
+        self._update_movie_location(cast(messages.MovieLocation, results[3]))
+        self._update_screen_mask(cast(messages.ScreenMask, results[4]))
+        self._update_screen_mask2(cast(messages.ScreenMask2, results[5]))
+        self._update_cinemascape_mode(cast(messages.CinemascapeMode, results[6]))
 
         if self.movie.play_status != const.PLAY_STATUS_NONE:
             res1 = await self.get_content_details(self.osd.highlighted)
@@ -332,7 +330,7 @@ class Device:
         self.movie.chapter_location = res.field_chapter_location
 
     async def get_content_details(
-        self, handle: str, passcode: str = None
+        self, handle: str, passcode: str | None = None
     ) -> messages.ContentDetailsOverview:
         """Return content details for the currently selected title."""
         responses: list[Response] = await self._send_multi(
@@ -344,7 +342,7 @@ class Device:
         return overview
 
     def _update_content_details(
-        self, res: messages.ContentDetailsOverview = None
+        self, res: messages.ContentDetailsOverview | None = None
     ) -> None:
         self.movie.handle = res.field_handle if res else ""
         self.movie.title = res.field_title if res else ""

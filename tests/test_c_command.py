@@ -10,7 +10,6 @@ import pytest
 from kaleidescape import const
 from kaleidescape import message as messages
 from kaleidescape.connection import Connection
-
 from kaleidescape.const import LOCAL_CPDID, STATE_CONNECTED, STATE_DISCONNECTED
 from kaleidescape.dispatcher import Dispatcher
 from kaleidescape.error import KaleidescapeError, MessageError

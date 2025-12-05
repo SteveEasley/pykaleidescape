@@ -53,7 +53,7 @@ def test_message_parser_request():
     assert parsed.status == 0
     assert parsed.name == "GET_MESSAGE_NAME"
     assert parsed.fields == ["field1", "field2"]
-    assert parsed.checksum is 0
+    assert parsed.checksum == 0
 
 
 def test_message_parser_device_id():

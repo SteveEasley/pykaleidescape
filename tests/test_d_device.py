@@ -10,7 +10,6 @@ from kaleidescape.connection import Connection
 from kaleidescape.const import LOCAL_CPDID, SUCCESS
 from kaleidescape.device import Device
 from kaleidescape.dispatcher import Dispatcher
-from kaleidescape.error import KaleidescapeError, MessageError
 
 from . import create_signal
 from .emulator import Emulator

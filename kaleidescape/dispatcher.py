@@ -69,3 +69,4 @@ class Dispatcher:
         if asyncio.iscoroutinefunction(check_target):
             return self._loop.create_task(target(*args))
         target(*args)
+        return None

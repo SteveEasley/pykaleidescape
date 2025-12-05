@@ -4,21 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
-from collections.abc import Callable
+import socket
+from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING
 
-import dns.asyncresolver
-import dns.exception
-from dns.resolver import Answer
+import aiodns
 
 from . import const
 from .error import KaleidescapeError, MessageParseError, format_error
 from .message import Response
 
 if TYPE_CHECKING:
-    import dns.resolver
-
     from .dispatcher import Dispatcher
     from .message import Request
 
@@ -31,10 +27,14 @@ SEPARATOR_BYTES = SEPARATOR.encode("latin-1")
 class Connection:
     """Class handling network connection to hardware device."""
 
-    def __init__(self, dispatcher: Dispatcher, on_event: Callable = None) -> None:
+    def __init__(
+        self,
+        dispatcher: Dispatcher,
+        on_event: Callable[[Response], Coroutine[object, object, object]] | None = None,
+    ) -> None:
         """Initializes connection."""
         self._dispatcher = dispatcher
-        self._on_event = on_event
+        self._on_event: Callable[[Response], Coroutine[object, object, object]] | None = on_event
 
         self._ip: str | None = None
         self._port: int | None = None
@@ -231,7 +231,8 @@ class Connection:
             raise KaleidescapeError(err)
 
         wait = 0.01
-        retries = self.timeout * (1 / wait)
+        assert self._timeout is not None
+        retries = self._timeout * (1 / wait)
 
         while request.seq < 0:
             try:
@@ -272,37 +273,13 @@ class Connection:
             self._pending_requests.pop(request.seq)
 
     @staticmethod
-    async def resolve(host: str, timeout: int = 5) -> str:
+    async def resolve(host: str) -> str:
         """Resolve hostname to ip address."""
+        try:
+            res = await aiodns.DNSResolver().gethostbyname(host, socket.AF_INET)
+            if len(res.addresses) < 1:
+                raise ConnectionError("Unexpected zero length addresses response")
+        except aiodns.error.DNSError as err:
+            raise ConnectionError(f"Failed to resolve host {host}") from err
 
-        async def _resolve(use_mdns: bool) -> str:
-            resolver = dns.asyncresolver.Resolver()
-            resolver.lifetime = timeout
-            if use_mdns:
-                resolver.nameservers = ["224.0.0.251"]
-                resolver.port = 5353
-            answer: Answer = await resolver.resolve(host, rdtype="A")
-            if len(answer) == 0:
-                raise RuntimeError("Answer expected")
-            return answer[0].to_text()
-
-        ip_address = host
-
-        if re.search("^[0-9.]+$", host) is None:
-            try:
-                # Attempt resolving via mDNS
-                ip_address = await _resolve(True)
-            except dns.exception.DNSException:
-                try:
-                    # Attempt resolving via DNS
-                    ip_address = await _resolve(False)
-                except dns.exception.DNSException as err:
-                    raise ConnectionError(f"Failed to resolve host {host}") from err
-        else:
-            # Normalize IP by removing leading zeros
-            ip_address = re.sub(r"\b0+(\d)", r"\1", ip_address)
-
-        if ip_address != host:
-            _LOGGER.debug("Resolved %s to %s", host, ip_address)
-
-        return ip_address
+        return res.addresses[0]

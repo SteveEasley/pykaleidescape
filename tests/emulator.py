@@ -43,8 +43,8 @@ class Response:
         device_id: str | None,
         seq: int = 0,
         status: int = 0,
-        name: str = None,
-        fields: list[str] = None,
+        name: str | None = None,
+        fields: list[str] | None = None,
     ):
         self.device_id = device_id
         self.seq = seq
@@ -78,7 +78,7 @@ class Response:
 class Event(Response):
     """Class for responses that are broadcast to multiple Devices."""
 
-    def __init__(self, source_device_ids: list[str], status: int, name: str, fields: list = None) -> None:
+    def __init__(self, source_device_ids: list[str], status: int, name: str, fields: list[str] | None = None) -> None:
         super().__init__(None, -1, status, name, fields)
         self.source_device_ids = source_device_ids
 
@@ -326,8 +326,8 @@ class Emulator:
         while True:
             request = None
             try:
-                result = await reader.readuntil()
-                result = result.decode("latin-1").strip()
+                data = await reader.readuntil()
+                result = data.decode("latin-1").strip()
                 if not result:
                     continue
 
@@ -362,7 +362,7 @@ class Emulator:
                 break
             except (error.MessageError, error.MessageParseError) as e:
                 device_id = request.device_id if request else "??"
-                seq = request.seq if request else "?"
+                seq = request.seq if request else -1
                 response = Response(device_id, seq, e.code, e.error)
                 await client.send(response)
 
@@ -372,7 +372,7 @@ class Emulator:
         except ValueError:
             pass
 
-    async def send_event(self, device_ids: list[str], status: int, name: str, fields: list = None):
+    async def send_event(self, device_ids: list[str], status: int, name: str, fields: list[str] | None = None):
         """Sends an event message to device_ids."""
         event = Event(device_ids, status, name, fields)
         for client in self._clients:
