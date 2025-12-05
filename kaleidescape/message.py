@@ -1404,3 +1404,8 @@ class MenuToggle(Request):
     """Class for KALEIDESCAPE_MENU_TOGGLE messages."""
 
     name = const.KALEIDESCAPE_MENU_TOGGLE
+
+class StatusAndSettings(Request):
+    """Class for STATUS_AND_SETTINGS messages."""
+
+    name = const.STATUS_AND_SETTINGS

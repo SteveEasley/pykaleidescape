@@ -224,6 +224,10 @@ class Device:
         """Send menu toggle command."""
         await self._send(messages.MenuToggle)
 
+    async def status_and_settings(self) -> None:
+        """Send status and settings toggle command (to change subtitles and audio tracks)."""
+        await self._send(messages.StatusAndSettings)
+
     async def _get_device_info(self) -> messages.DeviceInfo:
         """Return device info."""
         res = await self._send(messages.GetDeviceInfo)
