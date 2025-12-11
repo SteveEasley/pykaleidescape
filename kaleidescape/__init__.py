@@ -8,4 +8,4 @@ from .error import KaleidescapeError
 
 __all__ = ["const", "Device", "Dispatcher", "KaleidescapeError"]
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
