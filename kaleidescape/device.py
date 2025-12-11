@@ -375,7 +375,6 @@ class Device:
         self, handle: str, passcode: str | None = None
     ) -> messages.ContentDetailsOverview:
         """Return content details for the currently selected title."""
-        print(handle, passcode)
         responses: list[Response] = await self._send_multi(
             messages.GetContentDetails, 0, [handle, passcode if passcode else ""]
         )
