@@ -1,21 +1,32 @@
+"""Simple example demonstrating basic event handling with Kaleidescape.
+
+Connects to a player and:
+  1. Registers an event listener that prints all events to the console
+  2. Sends a power on then power off command
+  3. Disconnects
+"""
+
 import asyncio
 
 import logging
+import sys
+
 from kaleidescape import Device, const
 
-# logging.basicConfig(level=logging.DEBUG)
-# pylint: disable=all
-
-
-async def device_event(event: str):
-    print(f"event: {event}")
+logging.basicConfig(level=logging.DEBUG)
 
 
 async def main():
-    # Use "my-kaleidescape" on Windows
-    device = Device("my-kaleidescape.local")
+    if not len(sys.argv) == 2:
+        print(f"Usage: {sys.argv[0]} <ip>")
+        sys.exit(1)
 
-    device.dispatcher.connect(device_event)
+    device = Device(sys.argv[1])
+
+    async def _handle_event(event: str, params: list[str] = None):
+        print(f">>> Event Received: {event} {params}")
+
+    device.dispatcher.connect(_handle_event)
 
     await device.connect()
     await device.refresh()

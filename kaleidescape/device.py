@@ -11,6 +11,14 @@ from . import message as messages
 from .connection import Connection
 from .dispatcher import Dispatcher
 
+T = TypeVar("T")
+
+
+def _cast(typ: type[T], result: object) -> T:
+    """Shorthand for cast to reduce verbosity in multi-result unpacking."""
+    return cast(T, result)
+
+
 if TYPE_CHECKING:
     from .dispatcher import Signal
     from .message import Request, Response
@@ -116,15 +124,17 @@ class Device:
             self._get_cinemascape_mode(),
         )
 
-        self._update_ui_state(cast(messages.UiState, results[0]))
-        self._update_highlighted_selection(cast(messages.HighlightedSelection, results[1]))
-        self._update_play_status(cast(messages.PlayStatus, results[2]))
-        self._update_movie_location(cast(messages.MovieLocation, results[3]))
-        self._update_screen_mask(cast(messages.ScreenMask, results[4]))
-        self._update_screen_mask2(cast(messages.ScreenMask2, results[5]))
-        self._update_cinemascape_mode(cast(messages.CinemascapeMode, results[6]))
+        self._update_ui_state(_cast(messages.UiState, results[0]))
+        self._update_highlighted_selection(
+            _cast(messages.HighlightedSelection, results[1])
+        )
+        self._update_play_status(_cast(messages.PlayStatus, results[2]))
+        self._update_movie_location(_cast(messages.MovieLocation, results[3]))
+        self._update_screen_mask(_cast(messages.ScreenMask, results[4]))
+        self._update_screen_mask2(_cast(messages.ScreenMask2, results[5]))
+        self._update_cinemascape_mode(_cast(messages.CinemascapeMode, results[6]))
 
-        if self.movie.play_status != const.PLAY_STATUS_NONE:
+        if self.movie.play_status != const.PLAY_STATUS_NONE and self.osd.highlighted:
             res1 = await self.get_content_details(self.osd.highlighted)
             self._update_content_details(cast(messages.ContentDetailsOverview, res1))
 
@@ -223,6 +233,38 @@ class Device:
     async def menu_toggle(self) -> None:
         """Send menu toggle command."""
         await self._send(messages.MenuToggle)
+
+    async def set_volume_capabilities(self, value: int) -> None:
+        """Send volume capabilities event."""
+        if not isinstance(value, int):
+            raise TypeError("Value must be an integer")
+        if value < 0 or value > 31:
+            raise ValueError("Value must be between 0 and 31 inclusive")
+        await self.send_event(
+            const.USER_DEFINED_EVENT_VOLUME_CAPABILITIES + f"={value}"
+        )
+
+    async def set_volume_level(self, level: int) -> None:
+        """Send volume level event."""
+        if not isinstance(level, int):
+            raise TypeError("Level must be an integer")
+        if level < 0 or level > 100:
+            raise ValueError("Level must be between 0 and 100 inclusive")
+        await self.send_event(f"{const.USER_DEFINED_EVENT_VOLUME_LEVEL}={level}")
+
+    async def set_volume_muted(self, muted: bool) -> None:
+        """Send volume muted event."""
+        if not isinstance(muted, bool):
+            raise TypeError("Muted must be a boolean")
+        await self.send_event(
+            const.USER_DEFINED_EVENT_MUTE_ON_FB
+            if muted
+            else const.USER_DEFINED_EVENT_MUTE_OFF_FB
+        )
+
+    async def send_event(self, value: str) -> None:
+        """Send user defined event."""
+        await self._send(messages.SendEvent, 0, [value])
 
     async def _get_device_info(self) -> messages.DeviceInfo:
         """Return device info."""
@@ -333,6 +375,7 @@ class Device:
         self, handle: str, passcode: str | None = None
     ) -> messages.ContentDetailsOverview:
         """Return content details for the currently selected title."""
+        print(handle, passcode)
         responses: list[Response] = await self._send_multi(
             messages.GetContentDetails, 0, [handle, passcode if passcode else ""]
         )
@@ -506,7 +549,7 @@ class Device:
         elif isinstance(response, messages.CinemascapeMask):
             self._update_cinemascape_mask(response)
 
-        self._dispatcher.send(response.name)
+        self._dispatcher.send(response.name, response.fields)
 
     @property
     def dispatcher(self) -> Dispatcher:

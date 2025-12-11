@@ -34,7 +34,9 @@ class Connection:
     ) -> None:
         """Initializes connection."""
         self._dispatcher = dispatcher
-        self._on_event: Callable[[Response], Coroutine[object, object, object]] | None = on_event
+        self._on_event: (
+            Callable[[Response], Coroutine[object, object, object]] | None
+        ) = on_event
 
         self._ip: str | None = None
         self._port: int | None = None

@@ -155,3 +155,69 @@ async def test_get_content_details(emulator: Emulator):
     assert res.field_title == "Turtle Odyssey"
 
     await device.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_set_volume_capabilities(emulator: Emulator):
+    """Test test_set_volume_capabilities."""
+    device = Device("127.0.0.1", port=10001)
+    await device.refresh()
+
+    # Should succeed with valid argument
+    await device.set_volume_capabilities(15)
+
+    # Invalid argument types
+    with pytest.raises(TypeError):
+        await device.set_volume_capabilities("50")  # type: ignore[arg-type]
+
+    # Out of range values
+    with pytest.raises(ValueError):
+        await device.set_volume_capabilities(-1)
+
+    with pytest.raises(ValueError):
+        await device.set_volume_capabilities(32)
+
+    await device.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_set_volume_level(emulator: Emulator):
+    """Test set_volume_level command and validation."""
+    device = Device("127.0.0.1", port=10001)
+    await device.refresh()
+
+    # Should succeed with valid argument
+    await device.set_volume_level(50)
+
+    # Invalid argument types
+    with pytest.raises(TypeError):
+        await device.set_volume_level("50")  # type: ignore[arg-type]
+
+    # Out of range values
+    with pytest.raises(ValueError):
+        await device.set_volume_level(-1)
+
+    with pytest.raises(ValueError):
+        await device.set_volume_level(101)
+
+    await device.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_set_volume_muted(emulator: Emulator):
+    """Test set_volume_muted command and validation."""
+    device = Device("127.0.0.1", port=10001)
+    await device.refresh()
+
+    # Should succeed with valid boolean arguments
+    await device.set_volume_muted(True)
+    await device.set_volume_muted(False)
+
+    # Invalid argument types
+    with pytest.raises(TypeError):
+        await device.set_volume_muted("true")  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError):
+        await device.set_volume_muted(1)  # type: ignore[arg-type]
+
+    await device.disconnect()
