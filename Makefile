@@ -1,10 +1,11 @@
 all: clean build
 
 test:
-	pytest -v tests/
+	pytest
 
 ruff:
 	ruff check kaleidescape tests --fix
+	ruff format kaleidescape tests
 
 mypy:
 	mypy kaleidescape tests

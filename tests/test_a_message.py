@@ -5,7 +5,13 @@ import pytest
 from kaleidescape import const
 from kaleidescape import message as messages
 from kaleidescape.error import MessageParseError
-from kaleidescape.message import MESSAGE_TYPE_REQUEST, MessageParser, Request, Response
+from kaleidescape.message import (
+    MESSAGE_TYPE_REQUEST,
+    MessageParser,
+    Request,
+    Response,
+    UserDefinedEvent,
+)
 
 
 def test_message_parser():
@@ -296,3 +302,16 @@ def test_message_get_available_devices():
     assert message.name == "GET_AVAILABLE_DEVICES"
     assert message.fields == []
     assert str(message) == "01/2/GET_AVAILABLE_DEVICES:"
+
+
+def test_user_defined_event_parsing():
+    """Test message response with USER_DEFINED_EVENT."""
+    resp = Response.factory("01/!/000:USER_DEFINED_EVENT:VOLUME_UP:/123")
+    assert isinstance(resp, UserDefinedEvent)
+    assert resp.name == "USER_DEFINED_EVENT"
+    assert resp.fields == ["VOLUME_UP"]
+
+    resp = Response.factory("01/!/000:USER_DEFINED_EVENT:SET_VOLUME_LEVEL=28:/123")
+    assert isinstance(resp, UserDefinedEvent)
+    assert resp.name == "USER_DEFINED_EVENT"
+    assert resp.fields == ["SET_VOLUME_LEVEL", "28"]

@@ -1,6 +1,5 @@
 """Tests for connection module."""
 
-
 import pytest
 
 from kaleidescape.connection import Connection
