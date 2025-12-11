@@ -1,5 +1,7 @@
 # pykaleidescape
 
+[![Test](https://github.com/SteveEasley/pykaleidescape/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SteveEasley/pykaleidescape/actions/workflows/ci.yml)
+
 Async Python client for controlling Kaleidescape devices via the Kaleidescape System Control Protocol.
 
 > Note: This library is not operated by, or affiliated with, Kaleidescape, Inc.
