@@ -15,6 +15,7 @@ def create_signal(dispatcher: Dispatcher, target_event: str) -> asyncio.Event:
     trigger = asyncio.Event()
 
     async def handler(event, *args):
+        _ = args
         if event == target_event:
             trigger.set()
 

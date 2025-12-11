@@ -196,7 +196,7 @@ class Connection:
             self._reconnect_task.cancel()
             try:
                 await self._reconnect_task
-            except:  # noqa: E722
+            except:  # pylint: disable=bare-except
                 # Ensure completes
                 pass
             self._reconnect_task = None
@@ -213,7 +213,7 @@ class Connection:
             self._response_handler_task.cancel()
             try:
                 await self._response_handler_task
-            except:  # noqa: E722
+            except:  # pylint: disable=bare-except
                 # Ensure completes
                 pass
             self._response_handler_task = None
@@ -243,11 +243,11 @@ class Connection:
                 request.seq = next(
                     (i for i in range(0, 10) if i not in self._pending_requests)
                 )
-            except StopIteration:
+            except StopIteration as e:
                 await asyncio.sleep(wait)
                 retries = retries - 1
                 if retries == 0:
-                    raise ConnectionError
+                    raise ConnectionError from e
                 continue
 
         self._pending_requests[request.seq] = request

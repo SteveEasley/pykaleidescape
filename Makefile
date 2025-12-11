@@ -3,8 +3,11 @@ all: clean build
 test:
 	pytest
 
-ruff:
+check:
 	ruff check kaleidescape tests --fix
+	pylint kaleidescape tests
+
+format:
 	ruff format kaleidescape tests
 
 mypy:
@@ -15,4 +18,4 @@ build:
 	python -m twine upload -u __token__ dist/*
 
 clean:
-	rm dist/*
+	rm -rf dist build pykaleidescape.egg-info

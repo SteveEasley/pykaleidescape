@@ -6,6 +6,6 @@ from .device import Device
 from .dispatcher import Dispatcher
 from .error import KaleidescapeError
 
-__all__ = ["Device", "Dispatcher", "KaleidescapeError"]
+__all__ = ["const", "Device", "Dispatcher", "KaleidescapeError"]
 
 __version__ = "1.1.0"

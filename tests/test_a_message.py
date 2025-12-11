@@ -22,7 +22,7 @@ def test_message_parser():
     assert parsed.seq == 2
     assert parsed.status == 3
     assert parsed.name == "MESSAGE_NAME"
-    assert parsed.fields == []
+    assert len(parsed.fields) == 0
     assert parsed.checksum == 123
 
 
@@ -195,7 +195,7 @@ def test_message_parser_empty_name():
     assert parsed.seq == 2
     assert parsed.status == 0
     assert parsed.name == ""
-    assert parsed.fields == []
+    assert len(parsed.fields) == 0
     assert parsed.checksum == 123
 
 

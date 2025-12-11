@@ -14,7 +14,7 @@ from .dispatcher import Dispatcher
 T = TypeVar("T")
 
 
-def _cast(typ: type[T], result: object) -> T:
+def _cast(typ: type[T], result: object) -> T:  # pylint: disable=unused-argument
     """Shorthand for cast to reduce verbosity in multi-result unpacking."""
     return cast(T, result)
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from .dispatcher import Signal
     from .message import Request, Response
 
-    RequestType = TypeVar("RequestType", bound=Request)
+    RequestT = TypeVar("RequestT", bound=Request)
 
 
 class Device:
@@ -480,7 +480,7 @@ class Device:
         self.automation.cinemascape_mask = res.field
 
     async def _send(
-        self, request: type[RequestType], zone: int = 0, fields: list[str] | None = None
+        self, request: type[RequestT], zone: int = 0, fields: list[str] | None = None
     ) -> Response:
         """Send request to hardware, returning a single response."""
         res = await self._send_multi(request, zone, fields)
@@ -488,7 +488,7 @@ class Device:
         return res[0]
 
     async def _send_multi(
-        self, request: type[RequestType], zone: int = 0, fields: list[str] | None = None
+        self, request: type[RequestT], zone: int = 0, fields: list[str] | None = None
     ) -> list[Response]:
         """Send request to hardware, returning one or more responses."""
         req = request(zone, fields)
