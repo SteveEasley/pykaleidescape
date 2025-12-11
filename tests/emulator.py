@@ -14,7 +14,7 @@ from kaleidescape.message import MessageParser
 _LOGGER = logging.getLogger(__name__)
 
 
-# pylint: disable=missing-function-docstring, invalid-name, no-self-use, line-too-long
+# pylint: disable=missing-function-docstring, invalid-name, line-too-long, broad-exception-raised
 # fmt: off
 
 # Returns the inverse of map
