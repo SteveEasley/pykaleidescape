@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import inspect
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -66,7 +67,7 @@ class Dispatcher:
         check_target = target
         while isinstance(check_target, functools.partial):
             check_target = check_target.func
-        if asyncio.iscoroutinefunction(check_target):
+        if inspect.iscoroutinefunction(check_target):
             return self._loop.create_task(target(*args))
         target(*args)
         return None

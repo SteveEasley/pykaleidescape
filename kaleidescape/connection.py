@@ -169,6 +169,7 @@ class Connection:
 
     async def _reconnect(self):
         """Reconnect to server."""
+        assert self._reconnect_delay
         try:
             while self._state != const.STATE_CONNECTED:
                 try:
