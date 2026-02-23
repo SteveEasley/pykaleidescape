@@ -8,8 +8,6 @@ import socket
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING
 
-import aiodns
-
 from . import const
 from .error import KaleidescapeError, MessageParseError, format_error
 from .message import Response
@@ -278,10 +276,16 @@ class Connection:
     async def resolve(host: str) -> str:
         """Resolve hostname to ip address."""
         try:
-            res = await aiodns.DNSResolver().gethostbyname(host, socket.AF_INET)
-            if len(res.addresses) < 1:
+            addrinfo = await asyncio.get_running_loop().getaddrinfo(
+                host,
+                None,
+                family=socket.AF_INET,
+                type=socket.SOCK_STREAM,
+                proto=socket.IPPROTO_TCP,
+            )
+            if len(addrinfo) < 1:
                 raise ConnectionError("Unexpected zero length addresses response")
-        except aiodns.error.DNSError as err:
+        except OSError as err:
             raise ConnectionError(f"Failed to resolve host {host}") from err
 
-        return res.addresses[0]
+        return addrinfo[0][4][0]
