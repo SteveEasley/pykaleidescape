@@ -22,7 +22,11 @@ jobs:
         shell: bash
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          pkg_version="$(python -c "import kaleidescape; print(kaleidescape.__version__)")"
+          pkg_version="$(python -c 'import pathlib,re; text=pathlib.Path("kaleidescape/__init__.py").read_text(); m=re.search(r"__version__\s+=\s+\"([^\"]+)\"", text); print(m.group(1) if m else "")')"
+          if [[ -z "$pkg_version" ]]; then
+            echo "Could not parse version from kaleidescape/__init__.py."
+            exit 1
+          fi
           if [[ "$tag" != "$pkg_version" ]]; then
             echo "Release tag version ($tag) does not match kaleidescape.__version__ ($pkg_version)."
             exit 1
