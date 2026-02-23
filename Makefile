@@ -1,17 +1,15 @@
-all: clean build
-
-test:
-	pytest
-
-check:
-	ruff check kaleidescape tests --fix
-	pylint kaleidescape tests
+all: format check test
 
 format:
 	ruff format kaleidescape tests
 
-mypy:
+check:
 	mypy kaleidescape tests
+	ruff check kaleidescape tests --fix
+	pylint kaleidescape tests
+
+test:
+	pytest
 
 build:
 	python3 -m build

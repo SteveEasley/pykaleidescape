@@ -235,9 +235,9 @@ Guidelines:
 
 ## 5. Python Version, Typing & Style
 
-From project metadata (`setup.cfg`, `pyproject.toml`):
+From project metadata (`pyproject.toml`):
 
-- Python: target modern versions (includes `Programming Language :: Python :: 3.13`). Code uses `from __future__ import annotations`.
+- Python: target `>=3.11` (classifiers include `3.11` through `3.14`). Code uses `from __future__ import annotations`.
 - Linting: `ruff` is used, with `lint.extend-select = ["I"]` (import sorting).
 - Type checking: `mypy` is configured with `disable_error_code = "annotation-unchecked"` but type hints are widely used.
 
