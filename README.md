@@ -121,6 +121,11 @@ All commands are async methods on `Device` and must be awaited.
 - `await device.up()` / `await device.down()`
 - `await device.left()` / `await device.right()`
 - `await device.cancel()`
+- `await device.status_and_settings()`
+- `await device.intermission_toggle()`
+- `await device.go_movie_list()`
+- `await device.go_movie_collections()`
+- `await device.go_movies()`
 - `await device.go_movie_covers()`
 - `await device.menu_toggle()`
 

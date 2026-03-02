@@ -256,6 +256,41 @@ class Emulator:
             (SUCCESS,),
         )
         self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.StatusAndSettings.name,
+            (SUCCESS,),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.IntermissionToggle.name,
+            (SUCCESS,),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GoMovieList.name,
+            (SUCCESS,),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GoMovieCollections.name,
+            (SUCCESS,),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GoMovies.name,
+            (SUCCESS,),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.GoMovieCovers.name,
+            (SUCCESS,),
+        )
+        self.register_mock_command(
+            ("01", "#00000000123A"),
+            messages.MenuToggle.name,
+            (SUCCESS,),
+        )
+        self.register_mock_command(
             ("01",),
             messages.SendEvent.name,
             (SUCCESS,),
