@@ -226,8 +226,28 @@ class Device:
         """Send cancel command."""
         await self._send(messages.Cancel)
 
+    async def status_and_settings(self) -> None:
+        """Send status_and_settings command."""
+        await self._send(messages.StatusAndSettings)
+
+    async def intermission_toggle(self) -> None:
+        """Send intermission_toggle command."""
+        await self._send(messages.IntermissionToggle)
+
+    async def go_movie_list(self) -> None:
+        """Send go_movie_list command."""
+        await self._send(messages.GoMovieList)
+
+    async def go_movie_collections(self) -> None:
+        """Send go_movie_collections command."""
+        await self._send(messages.GoMovieCollections)
+
+    async def go_movies(self) -> None:
+        """Send go_movies command."""
+        await self._send(messages.GoMovies)
+
     async def go_movie_covers(self) -> None:
-        """Send list command."""
+        """Send go_movie_covers command."""
         await self._send(messages.GoMovieCovers)
 
     async def menu_toggle(self) -> None:

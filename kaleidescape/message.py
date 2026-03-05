@@ -1410,8 +1410,38 @@ class Cancel(Request):
     name = const.CANCEL
 
 
-class GoMovieCovers(Request):
+class StatusAndSettings(Request):
+    """Class for STATUS_AND_SETTINGS messages."""
+
+    name = const.STATUS_AND_SETTINGS
+
+
+class IntermissionToggle(Request):
+    """Class for INTERMISSION_TOGGLE messages."""
+
+    name = const.INTERMISSION_TOGGLE
+
+
+class GoMovieList(Request):
     """Class for GO_MOVIE_LIST messages."""
+
+    name = const.GO_MOVIE_LIST
+
+
+class GoMovieCollections(Request):
+    """Class for GO_MOVIE_COLLECTIONS messages."""
+
+    name = const.GO_MOVIE_COLLECTIONS
+
+
+class GoMovies(Request):
+    """Class for GO_MOVIES messages."""
+
+    name = const.GO_MOVIES
+
+
+class GoMovieCovers(Request):
+    """Class for GO_MOVIE_COVERS messages."""
 
     name = const.GO_MOVIE_COVERS
 
