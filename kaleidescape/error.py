@@ -39,7 +39,7 @@ class MessageError(KaleidescapeError, RuntimeError):
 
     def __init__(self, code: int, message: str | None = None):
         self.code = code
-        self.error = const.RESPONSE_ERROR[code]
+        self.error = const.RESPONSE_ERROR.get(code, f"Unknown error ({code})")
         super().__init__(self.error + (f" for command '{message}'" if message else ""))
 
 
@@ -48,5 +48,5 @@ class MessageParseError(KaleidescapeError, ValueError):
 
     def __init__(self, code: int, message: str):
         self.code = code
-        self.error = const.RESPONSE_ERROR[code]
+        self.error = const.RESPONSE_ERROR.get(code, f"Unknown error ({code})")
         super().__init__(self.error + (f" for command '{message}'" if message else ""))
