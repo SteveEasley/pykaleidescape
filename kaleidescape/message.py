@@ -353,7 +353,7 @@ class Response(Message):
     @property
     def error(self) -> str:
         """Returns text associated with this message's status."""
-        return const.RESPONSE_ERROR[self._status]
+        return const.RESPONSE_ERROR.get(self._status, f"Unknown error ({self._status})")
 
     @property
     def fields(self) -> list[str]:
