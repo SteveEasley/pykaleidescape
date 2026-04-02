@@ -41,6 +41,29 @@ async def test_connect(emulator: Emulator):
 
 
 @pytest.mark.asyncio
+async def test_disconnect_during_reconnect(emulator: Emulator):
+    """Test Device.disconnect() cancels reconnect in STATE_RECONNECTING."""
+    device = Device("127.0.0.1", port=10001, reconnect=True, reconnect_delay=0.5)
+
+    connect_signal = create_signal(device.dispatcher, const.STATE_CONNECTED)
+    disconnect_signal = create_signal(device.dispatcher, const.STATE_DISCONNECTED)
+
+    await device.connect()
+    await connect_signal.wait()
+    assert device.is_connected
+
+    # Drop connection to trigger library reconnect
+    await emulator.stop()
+    await disconnect_signal.wait()
+    assert device.connection.state == const.STATE_RECONNECTING
+
+    # Device.disconnect() should work even during STATE_RECONNECTING
+    await device.disconnect()
+    assert device.connection.state == const.STATE_DISCONNECTED
+    assert not device.is_connected
+
+
+@pytest.mark.asyncio
 async def test_get_available_devices(emulator: Emulator):
     """Test get available devices."""
     device = Device("127.0.0.1", port=10001)
