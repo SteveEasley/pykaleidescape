@@ -100,9 +100,6 @@ class Device:
 
     async def disconnect(self) -> None:
         """Disconnect from hardware."""
-        if not self.is_connected:
-            return
-
         await self._connection.disconnect()
 
     # noinspection PyTypeChecker
