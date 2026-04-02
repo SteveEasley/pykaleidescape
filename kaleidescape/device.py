@@ -540,10 +540,12 @@ class Device:
                 and self.movie.play_status != const.PLAY_STATUS_NONE
             ):
                 if old_mode == const.PLAY_STATUS_NONE or old_mode is None:
-                    res = await self.get_content_details(self.osd.highlighted)
-                    self._update_content_details(
-                        cast(messages.ContentDetailsOverview, res)
-                    )
+                    highlighted = self.osd.highlighted
+                    if highlighted:
+                        res = await self.get_content_details(highlighted)
+                        self._update_content_details(
+                            cast(messages.ContentDetailsOverview, res)
+                        )
             elif self.movie.title:
                 self._update_content_details()
         elif isinstance(response, messages.MovieMediaType):

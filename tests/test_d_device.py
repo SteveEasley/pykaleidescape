@@ -188,6 +188,42 @@ async def test_get_content_details(emulator: Emulator):
 
 
 @pytest.mark.asyncio
+async def test_play_status_with_empty_highlighted(emulator: Emulator):
+    """Test that a PlayStatus event does not crash when osd.highlighted is empty."""
+    device = Device("127.0.0.1", port=10001)
+    await device.refresh()
+
+    # Put device into power ON state
+    emulator.register_mock_command(
+        ("01",),
+        messages.GetDevicePowerState.name,
+        (SUCCESS, messages.DevicePowerState.name, ["1", "1"]),
+    )
+    power_signal = create_signal(device.dispatcher, messages.DevicePowerState.name)
+    await emulator.send_event(
+        [LOCAL_CPDID], SUCCESS, messages.DevicePowerState.name, ["1"]
+    )
+    await asyncio.wait_for(power_signal.wait(), 1)
+    assert device.power.state == const.DEVICE_POWER_STATE_ON
+
+    # Confirm highlighted is empty (default emulator returns "")
+    assert device.osd.highlighted == ""
+
+    # Transition play status from NONE to playing with an empty highlighted handle.
+    play_signal = create_signal(device.dispatcher, messages.PlayStatus.name)
+    await emulator.send_event(
+        [LOCAL_CPDID],
+        SUCCESS,
+        messages.PlayStatus.name,
+        ["2", "1", "00", "00000", "00000", "000", "00000", "00000"],
+    )
+    await asyncio.wait_for(play_signal.wait(), 1)
+    assert device.movie.play_status == const.PLAY_STATUS_PLAYING
+
+    await device.disconnect()
+
+
+@pytest.mark.asyncio
 async def test_set_volume_capabilities(emulator: Emulator):
     """Test test_set_volume_capabilities."""
     device = Device("127.0.0.1", port=10001)
