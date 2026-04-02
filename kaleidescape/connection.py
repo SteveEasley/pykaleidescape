@@ -148,6 +148,8 @@ class Connection:
                 _LOGGER.exception(
                     "Unhandled exception %s('%s')", type(err).__name__, err
                 )
+                asyncio.create_task(self._handle_connection_error(err))
+                return
 
     async def _handle_connection_error(self, err: Exception):
         """Handle connection failures and schedule reconnect."""
