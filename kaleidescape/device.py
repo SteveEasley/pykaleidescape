@@ -50,7 +50,9 @@ class Device:
         self._reconnect_delay = reconnect_delay
 
         self._dispatcher = Dispatcher()
-        self._connection = Connection(self._dispatcher, self._handle_event)
+        self._connection = Connection(
+            self._dispatcher, self._handle_event, on_reconnect=self._on_reconnect
+        )
 
         self.system = System()
         self.power = Power()
@@ -101,6 +103,18 @@ class Device:
     async def disconnect(self) -> None:
         """Disconnect from hardware."""
         await self._connection.disconnect()
+
+    async def _on_reconnect(self) -> None:
+        """Refresh device state after auto-reconnect."""
+        results = await asyncio.gather(
+            self._get_device_power_state(),
+            self._get_system_readiness_state(),
+        )
+        self._update_device_power_state(cast(messages.DevicePowerState, results[0]))
+        self._update_system_readiness_state(
+            cast(messages.SystemReadinessState, results[1])
+        )
+        await self.refresh()
 
     # noinspection PyTypeChecker
     async def refresh(self) -> None:

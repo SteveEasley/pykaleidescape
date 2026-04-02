@@ -171,3 +171,41 @@ async def test_unhandled_exception_triggers_reconnect(emulator: Emulator):
     assert connection.state == STATE_CONNECTED
 
     await connection.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_reconnect_calls_on_reconnect(emulator: Emulator):
+    """Test on_reconnect callback is called after successful reconnect."""
+    dispatcher = Dispatcher()
+    callback_called = asyncio.Event()
+
+    async def on_reconnect():
+        callback_called.set()
+
+    connection = Connection(dispatcher, on_reconnect=on_reconnect)
+
+    connect_signal = create_signal(dispatcher, STATE_CONNECTED)
+    disconnect_signal = create_signal(dispatcher, STATE_DISCONNECTED)
+
+    await connection.connect(
+        "127.0.0.1", port=10001, timeout=1, reconnect=True, reconnect_delay=0.5
+    )
+    await connect_signal.wait()
+    assert connection.state == STATE_CONNECTED
+
+    # Callback should NOT have been called during initial connect
+    assert not callback_called.is_set()
+
+    # Drop and reconnect
+    connect_signal.clear()
+    await emulator.stop()
+    await disconnect_signal.wait()
+
+    await emulator.start()
+    await connect_signal.wait()
+    assert connection.state == STATE_CONNECTED
+
+    # Callback should have been called after reconnect
+    assert callback_called.is_set()
+
+    await connection.disconnect()
