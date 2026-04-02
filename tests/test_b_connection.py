@@ -1,10 +1,14 @@
 """Tests for connection module."""
 
+import asyncio
+from unittest.mock import patch
+
 import pytest
 
 from kaleidescape.connection import Connection
 from kaleidescape.const import STATE_CONNECTED, STATE_DISCONNECTED, STATE_RECONNECTING
 from kaleidescape.dispatcher import Dispatcher
+from kaleidescape.message import Response
 
 from . import create_signal
 from .emulator import Emulator
@@ -135,3 +139,35 @@ async def test_reconnect_cancelled(emulator):
 
     await connection.disconnect()
     assert connection.state == STATE_DISCONNECTED
+
+
+@pytest.mark.asyncio
+async def test_unhandled_exception_triggers_reconnect(emulator: Emulator):
+    """Test that unhandled exceptions in _response_handler trigger reconnect."""
+    dispatcher = Dispatcher()
+    connection = Connection(dispatcher)
+
+    connect_signal = create_signal(dispatcher, STATE_CONNECTED)
+    disconnect_signal = create_signal(dispatcher, STATE_DISCONNECTED)
+
+    await connection.connect(
+        "127.0.0.1", port=10001, timeout=1, reconnect=True, reconnect_delay=0.5
+    )
+    await connect_signal.wait()
+    assert connection.state == STATE_CONNECTED
+    connect_signal.clear()
+
+    # Patch Response.factory to raise an unexpected exception, simulating an
+    # unhandled error in the response handler loop.
+    with patch.object(Response, "factory", side_effect=RuntimeError("simulated")):
+        await emulator.send_event(["01"], 0, "DEVICE_POWER_STATE", ["0"])
+        await asyncio.wait_for(disconnect_signal.wait(), timeout=2)
+
+    # Handler should have exited and triggered reconnect
+    assert connection.state == STATE_RECONNECTING
+
+    # Reconnect should succeed with factory restored
+    await connect_signal.wait()
+    assert connection.state == STATE_CONNECTED
+
+    await connection.disconnect()
