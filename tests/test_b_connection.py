@@ -52,13 +52,11 @@ async def test_connect_timeout():
 
 @pytest.mark.asyncio
 async def test_connect_succeeds(emulator: Emulator):
-    """Test connect updates state and emits signal."""
+    """Test connect updates state without emitting signal."""
     dispatcher = Dispatcher()
     connection = Connection(dispatcher)
     assert connection.state == STATE_DISCONNECTED
-    signal = create_signal(dispatcher, STATE_CONNECTED)
     await connection.connect("127.0.0.1", port=10001, timeout=1)
-    await signal.wait()
     assert connection.ip == "127.0.0.1"
     assert connection.port == 10001
     assert connection.timeout == 1
@@ -95,13 +93,14 @@ async def test_reconnect_during_event(emulator: Emulator):
     connect_signal = create_signal(dispatcher, STATE_CONNECTED)
     disconnect_signal = create_signal(dispatcher, STATE_DISCONNECTED)
 
-    # Assert connection
+    # Initial connect - no STATE_CONNECTED signal expected
     await connection.connect(
         "127.0.0.1", port=10001, timeout=1, reconnect=True, reconnect_delay=1
     )
-    await connect_signal.wait()
     assert connection.state == STATE_CONNECTED
-    connect_signal.clear()
+
+    # Allow emulator to register the client before stopping
+    await asyncio.sleep(0.1)
 
     # Assert transitions to reconnecting and emits disconnect signal
     await emulator.stop()
@@ -122,15 +121,16 @@ async def test_reconnect_cancelled(emulator):
     dispatcher = Dispatcher()
     connection = Connection(dispatcher)
 
-    connect_signal = create_signal(dispatcher, STATE_CONNECTED)
     disconnect_signal = create_signal(dispatcher, STATE_DISCONNECTED)
 
-    # Assert open and fires connected
+    # Initial connect - no STATE_CONNECTED signal expected
     await connection.connect(
         "127.0.0.1", port=10001, timeout=1, reconnect=True, reconnect_delay=0.5
     )
-    await connect_signal.wait()
     assert connection.state == STATE_CONNECTED
+
+    # Allow emulator to register the client before stopping
+    await asyncio.sleep(0.1)
 
     # Assert transitions to reconnecting and emits disconnect signal
     await emulator.stop()
@@ -153,9 +153,10 @@ async def test_unhandled_exception_triggers_reconnect(emulator: Emulator):
     await connection.connect(
         "127.0.0.1", port=10001, timeout=1, reconnect=True, reconnect_delay=0.5
     )
-    await connect_signal.wait()
     assert connection.state == STATE_CONNECTED
-    connect_signal.clear()
+
+    # Allow emulator to register the client
+    await asyncio.sleep(0)
 
     # Patch Response.factory to raise an unexpected exception, simulating an
     # unhandled error in the response handler loop.
@@ -166,8 +167,33 @@ async def test_unhandled_exception_triggers_reconnect(emulator: Emulator):
     # Handler should have exited and triggered reconnect
     assert connection.state == STATE_RECONNECTING
 
-    # Reconnect should succeed with factory restored
+    # Reconnect should succeed and emit STATE_CONNECTED
     await connect_signal.wait()
     assert connection.state == STATE_CONNECTED
+
+    await connection.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_connect_does_not_dispatch_connected(emulator: Emulator):
+    """Test that initial connect does not dispatch STATE_CONNECTED signal."""
+    dispatcher = Dispatcher()
+    connection = Connection(dispatcher)
+    signal_received = False
+
+    async def on_signal(event, *args):
+        nonlocal signal_received
+        if event == STATE_CONNECTED:
+            signal_received = True
+
+    dispatcher.connect(on_signal)
+
+    await connection.connect("127.0.0.1", port=10001, timeout=1)
+    assert connection.state == STATE_CONNECTED
+
+    # Give any pending tasks a chance to run
+    await asyncio.sleep(0.05)
+
+    assert not signal_received, "STATE_CONNECTED should not be dispatched during initial connect"
 
     await connection.disconnect()

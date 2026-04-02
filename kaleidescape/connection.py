@@ -116,7 +116,6 @@ class Connection:
         self._response_handler_task = asyncio.create_task(self._response_handler())
 
         self._state = const.STATE_CONNECTED
-        self._dispatcher.send(const.STATE_CONNECTED)
 
     async def _response_handler(self) -> None:
         """Main loop receiving responses and events from hardware device."""
@@ -182,6 +181,7 @@ class Connection:
                     await asyncio.sleep(self._reconnect_delay)
                 else:
                     self._reconnect_task = None
+                    self._dispatcher.send(const.STATE_CONNECTED)
                     _LOGGER.info("Reconnected to %s", self._ip)
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.exception("Unhandled exception %s('%s')", type(err).__name__, err)
