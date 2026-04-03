@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypeVar, cast
 
@@ -10,6 +11,8 @@ from . import const
 from . import message as messages
 from .connection import Connection
 from .dispatcher import Dispatcher
+
+_LOGGER = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -119,17 +122,24 @@ class Device:
             self._get_screen_mask(),
             self._get_screen_mask2(),
             self._get_cinemascape_mode(),
+            return_exceptions=True,
         )
 
-        self._update_ui_state(_cast(messages.UiState, results[0]))
-        self._update_highlighted_selection(
-            _cast(messages.HighlightedSelection, results[1])
-        )
-        self._update_play_status(_cast(messages.PlayStatus, results[2]))
-        self._update_movie_location(_cast(messages.MovieLocation, results[3]))
-        self._update_screen_mask(_cast(messages.ScreenMask, results[4]))
-        self._update_screen_mask2(_cast(messages.ScreenMask2, results[5]))
-        self._update_cinemascape_mode(_cast(messages.CinemascapeMode, results[6]))
+        updaters = [
+            (results[0], messages.UiState, self._update_ui_state),
+            (results[1], messages.HighlightedSelection, self._update_highlighted_selection),
+            (results[2], messages.PlayStatus, self._update_play_status),
+            (results[3], messages.MovieLocation, self._update_movie_location),
+            (results[4], messages.ScreenMask, self._update_screen_mask),
+            (results[5], messages.ScreenMask2, self._update_screen_mask2),
+            (results[6], messages.CinemascapeMode, self._update_cinemascape_mode),
+        ]
+
+        for result, msg_type, updater in updaters:
+            if isinstance(result, BaseException):
+                _LOGGER.warning("Refresh query failed: %s", result)
+            else:
+                updater(_cast(msg_type, result))
 
         if self.movie.play_status != const.PLAY_STATUS_NONE and self.osd.highlighted:
             res1 = await self.get_content_details(self.osd.highlighted)

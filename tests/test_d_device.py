@@ -7,7 +7,7 @@ import pytest
 from kaleidescape import const
 from kaleidescape import message as messages
 from kaleidescape.connection import Connection
-from kaleidescape.const import LOCAL_CPDID, SUCCESS
+from kaleidescape.const import ERROR_INCOMPATIBLE_VIDEO_CONFIG, LOCAL_CPDID, SUCCESS
 from kaleidescape.device import Device
 from kaleidescape.dispatcher import Dispatcher
 
@@ -285,5 +285,54 @@ async def test_set_volume_muted(emulator: Emulator):
 
     with pytest.raises(TypeError):
         await device.set_volume_muted(1)  # type: ignore[arg-type]
+
+    await device.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_refresh_partial_failure(emulator: Emulator):
+    """Test refresh applies successful results when some queries fail.
+
+    Devices that lack masking calibration or CinemaScope return error 028
+    (Incompatible video configuration) for GET_SCREEN_MASK2. Previously
+    this caused asyncio.gather to discard all 7 query results. With
+    return_exceptions=True, the 6 successful queries should still update
+    device state.
+    """
+    # Register GET_SCREEN_MASK2 to return error 028
+    emulator.register_mock_command(
+        ("01", "#00000000123A"),
+        messages.GetScreenMask2.name,
+        (ERROR_INCOMPATIBLE_VIDEO_CONFIG,),
+    )
+
+    # Put device in ON state so refresh() runs its queries
+    emulator.register_mock_command(
+        ("01",),
+        messages.GetDevicePowerState.name,
+        (SUCCESS, messages.DevicePowerState.name, ["1", "1"]),
+    )
+
+    device = Device("127.0.0.1", port=10001)
+    await device.connect()
+
+    # Verify device is ON (required for refresh to proceed)
+    assert device.power.state == const.DEVICE_POWER_STATE_ON
+
+    # refresh() should succeed despite GET_SCREEN_MASK2 failing
+    await device.refresh()
+
+    # Verify successful queries were applied
+    assert device.osd.ui_screen == const.UI_STATE_SCREEN_MOVIE_LIST
+    assert device.movie.play_status == const.PLAY_STATUS_NONE
+    assert device.automation.movie_location == const.MOVIE_LOCATION_CONTENT
+    assert device.automation.screen_mask_ratio == const.SCREEN_MASK_ASPECT_RATIO_NONE
+    assert device.automation.cinemascape_mode == const.CINEMASCAPE_MODE_NONE
+
+    # Verify failed query left defaults unchanged
+    assert device.automation.screen_mask2_top_mask_abs == 0
+    assert device.automation.screen_mask2_bottom_mask_abs == 0
+    assert device.automation.screen_mask2_top_calibrated == 0
+    assert device.automation.screen_mask2_bottom_calibrated == 0
 
     await device.disconnect()
