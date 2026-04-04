@@ -296,6 +296,11 @@ class Emulator:
             (SUCCESS,),
         )
         self.register_mock_command(
+            ("01",),
+            messages.SendToSyslog.name,
+            (SUCCESS,),
+        )
+        self.register_mock_command(
             ("01", "#00000000123A"),
             "PLAY",  # Fake command for simulating slow work
             (SUCCESS,),

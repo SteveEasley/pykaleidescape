@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from importlib.metadata import version as pkg_version
 from typing import TYPE_CHECKING, TypeVar, cast
 
 from . import const
@@ -97,6 +98,15 @@ class Device:
         if self.is_movie_player:
             # Server only devices don't support this call
             self._update_friendly_name(await self._get_friendly_name())
+
+        await self._send_syslog_identification()
+
+    async def _send_syslog_identification(self) -> None:
+        """Send module identification to syslog for Kaleidescape support."""
+        ver = pkg_version("pykaleidescape")
+        await self._send(
+            messages.SendToSyslog, 0, ["INFORMATION", f"pykaleidescape version {ver}"]
+        )
 
     async def disconnect(self) -> None:
         """Disconnect from hardware."""
