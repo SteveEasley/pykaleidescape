@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypeVar, cast
 
@@ -10,6 +11,8 @@ from . import const
 from . import message as messages
 from .connection import Connection
 from .dispatcher import Dispatcher
+
+_LOGGER = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -133,17 +136,45 @@ class Device:
             self._get_screen_mask(),
             self._get_screen_mask2(),
             self._get_cinemascape_mode(),
+            return_exceptions=True,
         )
 
-        self._update_ui_state(_cast(messages.UiState, results[0]))
-        self._update_highlighted_selection(
-            _cast(messages.HighlightedSelection, results[1])
-        )
-        self._update_play_status(_cast(messages.PlayStatus, results[2]))
-        self._update_movie_location(_cast(messages.MovieLocation, results[3]))
-        self._update_screen_mask(_cast(messages.ScreenMask, results[4]))
-        self._update_screen_mask2(_cast(messages.ScreenMask2, results[5]))
-        self._update_cinemascape_mode(_cast(messages.CinemascapeMode, results[6]))
+        if not isinstance(results[0], BaseException):
+            self._update_ui_state(_cast(messages.UiState, results[0]))
+        else:
+            _LOGGER.warning("Refresh query failed: %s", results[0])
+
+        if not isinstance(results[1], BaseException):
+            self._update_highlighted_selection(
+                _cast(messages.HighlightedSelection, results[1])
+            )
+        else:
+            _LOGGER.warning("Refresh query failed: %s", results[1])
+
+        if not isinstance(results[2], BaseException):
+            self._update_play_status(_cast(messages.PlayStatus, results[2]))
+        else:
+            _LOGGER.warning("Refresh query failed: %s", results[2])
+
+        if not isinstance(results[3], BaseException):
+            self._update_movie_location(_cast(messages.MovieLocation, results[3]))
+        else:
+            _LOGGER.warning("Refresh query failed: %s", results[3])
+
+        if not isinstance(results[4], BaseException):
+            self._update_screen_mask(_cast(messages.ScreenMask, results[4]))
+        else:
+            _LOGGER.warning("Refresh query failed: %s", results[4])
+
+        if not isinstance(results[5], BaseException):
+            self._update_screen_mask2(_cast(messages.ScreenMask2, results[5]))
+        else:
+            _LOGGER.warning("Refresh query failed: %s", results[5])
+
+        if not isinstance(results[6], BaseException):
+            self._update_cinemascape_mode(_cast(messages.CinemascapeMode, results[6]))
+        else:
+            _LOGGER.warning("Refresh query failed: %s", results[6])
 
         if self.movie.play_status != const.PLAY_STATUS_NONE and self.osd.highlighted:
             res1 = await self.get_content_details(self.osd.highlighted)
