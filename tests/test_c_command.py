@@ -65,13 +65,14 @@ async def test_reconnect_during_command(emulator: Emulator):
     connect_signal = create_signal(dispatcher, STATE_CONNECTED)
     disconnect_signal = create_signal(dispatcher, STATE_DISCONNECTED)
 
-    # Assert connection
+    # Initial connect - no STATE_CONNECTED signal expected
     await connection.connect(
         "127.0.0.1", port=10001, timeout=1, reconnect=True, reconnect_delay=1
     )
-    await connect_signal.wait()
     assert connection.state == const.STATE_CONNECTED
-    connect_signal.clear()
+
+    # Allow emulator to register the client before stopping
+    await asyncio.sleep(0.1)
 
     # Break connection
     await emulator.stop()
