@@ -287,3 +287,42 @@ async def test_set_volume_muted(emulator: Emulator):
         await device.set_volume_muted(1)  # type: ignore[arg-type]
 
     await device.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_refresh_after_reconnect(emulator: Emulator):
+    """Test device state is refreshed after auto-reconnect."""
+    device = Device("127.0.0.1", port=10001, reconnect=True, reconnect_delay=0.5)
+
+    connect_signal = create_signal(device.dispatcher, const.STATE_CONNECTED)
+    disconnect_signal = create_signal(device.dispatcher, const.STATE_DISCONNECTED)
+
+    await device.connect()
+    await connect_signal.wait()
+    assert device.is_connected
+    assert device.power.state == const.DEVICE_POWER_STATE_STANDBY
+
+    # Change emulator response so power state differs after reconnect
+    emulator.register_mock_command(
+        ("01",),
+        messages.GetDevicePowerState.name,
+        (SUCCESS, messages.DevicePowerState.name, ["1", "1"]),
+    )
+
+    # Drop connection
+    connect_signal.clear()
+    await emulator.stop()
+    await disconnect_signal.wait()
+
+    # Reconnect - device state should be refreshed automatically
+    await emulator.start()
+    await connect_signal.wait()
+    assert device.is_connected
+
+    # Give the on_reconnect callback a moment to complete
+    await asyncio.sleep(0.1)
+
+    # Power state should reflect the new emulator response
+    assert device.power.state == const.DEVICE_POWER_STATE_ON
+
+    await device.disconnect()
