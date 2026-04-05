@@ -123,6 +123,7 @@ class Emulator:
         self._clients: list[Client] = []
         self._server: asyncio.base_events.Server | None = None
         self._mock_commands: dict[str, dict] = {}
+        self.received_requests: list[Request] = []
 
         self.register_mock_command(
             ("01", "#00000000123A"),
@@ -296,6 +297,11 @@ class Emulator:
             (SUCCESS,),
         )
         self.register_mock_command(
+            ("01",),
+            messages.SendToSyslog.name,
+            (SUCCESS,),
+        )
+        self.register_mock_command(
             ("01", "#00000000123A"),
             "PLAY",  # Fake command for simulating slow work
             (SUCCESS,),
@@ -374,6 +380,7 @@ class Emulator:
                 _LOGGER.debug("< %s", result)
 
                 request = Request(result)
+                self.received_requests.append(request)
 
                 if request.device_id in self._mock_commands:
                     if request.name in self._mock_commands[request.device_id]:

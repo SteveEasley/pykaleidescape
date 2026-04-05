@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 
+import kaleidescape
 from kaleidescape import const
 from kaleidescape import message as messages
 from kaleidescape.connection import Connection
@@ -62,6 +63,22 @@ async def test_disconnect_during_reconnect(emulator: Emulator):
     await device.disconnect()
     assert device.connection.state == const.STATE_DISCONNECTED
     assert not device.is_connected
+
+
+@pytest.mark.asyncio
+async def test_connect_sends_syslog_identification(emulator: Emulator):
+    """Test that connect sends SEND_TO_SYSLOG for module identification."""
+    device = Device("127.0.0.1", port=10001)
+    await device.connect()
+
+    syslog_requests = [
+        r for r in emulator.received_requests if r.name == "SEND_TO_SYSLOG"
+    ]
+    assert len(syslog_requests) == 1
+    assert syslog_requests[0].fields[0] == "INFORMATION"
+    assert syslog_requests[0].fields[1] == f"pykaleidescape version {kaleidescape.__version__}"
+
+    await device.disconnect()
 
 
 @pytest.mark.asyncio

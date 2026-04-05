@@ -1296,6 +1296,12 @@ class SendEvent(Request):
     name = const.SEND_EVENT
 
 
+class SendToSyslog(Request):
+    """Class for SEND_TO_SYSLOG messages."""
+
+    name = const.SEND_TO_SYSLOG
+
+
 @register
 class UserDefinedEvent(Response):
     """Class for USER_DEFINED_EVENT messages."""
