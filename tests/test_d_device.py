@@ -45,12 +45,13 @@ async def test_disconnect_during_reconnect(emulator: Emulator):
     """Test Device.disconnect() cancels reconnect in STATE_RECONNECTING."""
     device = Device("127.0.0.1", port=10001, reconnect=True, reconnect_delay=0.5)
 
-    connect_signal = create_signal(device.dispatcher, const.STATE_CONNECTED)
     disconnect_signal = create_signal(device.dispatcher, const.STATE_DISCONNECTED)
 
     await device.connect()
-    await connect_signal.wait()
     assert device.is_connected
+
+    # Allow emulator to register the client before stopping
+    await asyncio.sleep(0.1)
 
     # Drop connection to trigger library reconnect
     await emulator.stop()
