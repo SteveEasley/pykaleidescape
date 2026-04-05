@@ -29,12 +29,16 @@ class Connection:
         self,
         dispatcher: Dispatcher,
         on_event: Callable[[Response], Coroutine[object, object, object]] | None = None,
+        on_reconnect: Callable[[], Coroutine[object, object, object]] | None = None,
     ) -> None:
         """Initializes connection."""
         self._dispatcher = dispatcher
         self._on_event: (
             Callable[[Response], Coroutine[object, object, object]] | None
         ) = on_event
+        self._on_reconnect: (
+            Callable[[], Coroutine[object, object, object]] | None
+        ) = on_reconnect
 
         self._ip: str | None = None
         self._port: int | None = None
@@ -181,6 +185,13 @@ class Connection:
                     await asyncio.sleep(self._reconnect_delay)
                 else:
                     self._reconnect_task = None
+                    if self._on_reconnect:
+                        try:
+                            await self._on_reconnect()
+                        except Exception:  # pylint: disable=broad-except
+                            _LOGGER.exception(
+                                "Post-reconnect callback failed for %s", self._ip
+                            )
                     self._dispatcher.send(const.STATE_CONNECTED)
                     _LOGGER.info("Reconnected to %s", self._ip)
         except Exception as err:  # pylint: disable=broad-except
