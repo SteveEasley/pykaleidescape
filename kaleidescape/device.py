@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from importlib.metadata import version as pkg_version
 from typing import TYPE_CHECKING, TypeVar, cast
 
 from . import const
@@ -108,9 +107,12 @@ class Device:
 
     async def _send_syslog_identification(self) -> None:
         """Send module identification to syslog for Kaleidescape support."""
-        ver = pkg_version("pykaleidescape")
+        from . import __version__
+
         await self._send(
-            messages.SendToSyslog, 0, ["INFORMATION", f"pykaleidescape version {ver}"]
+            messages.SendToSyslog,
+            0,
+            ["INFORMATION", f"pykaleidescape version {__version__}"],
         )
 
     async def disconnect(self) -> None:

@@ -1,6 +1,7 @@
 """Tests for device module."""
 
 import asyncio
+from unittest.mock import patch
 
 import pytest
 
@@ -77,6 +78,29 @@ async def test_connect_sends_syslog_identification(emulator: Emulator):
     assert len(syslog_requests) == 1
     assert syslog_requests[0].fields[0] == "INFORMATION"
     assert syslog_requests[0].fields[1] == f"pykaleidescape version {kaleidescape.__version__}"
+
+    await device.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_send_syslog_identification_uses_dunder_version(emulator: Emulator):
+    """Test _send_syslog_identification reads from __version__, not importlib.metadata.
+
+    The commit switched from importlib.metadata.version() to kaleidescape.__version__
+    because importlib.metadata fails in PyInstaller bundles. This test patches __version__
+    to a sentinel value and confirms that exact value appears in the syslog message,
+    proving the method uses the module attribute directly.
+    """
+    sentinel = "0.0.0-test-sentinel"
+    with patch("kaleidescape.device.__version__", sentinel):
+        device = Device("127.0.0.1", port=10001)
+        await device.connect()
+
+    syslog_requests = [
+        r for r in emulator.received_requests if r.name == "SEND_TO_SYSLOG"
+    ]
+    assert len(syslog_requests) == 1
+    assert syslog_requests[0].fields[1] == f"pykaleidescape version {sentinel}"
 
     await device.disconnect()
 
