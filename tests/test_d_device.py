@@ -340,7 +340,6 @@ async def test_refresh_after_reconnect(emulator: Emulator):
     disconnect_signal = create_signal(device.dispatcher, const.STATE_DISCONNECTED)
 
     await device.connect()
-    await connect_signal.wait()
     assert device.is_connected
     assert device.power.state == const.DEVICE_POWER_STATE_STANDBY
 
@@ -352,7 +351,6 @@ async def test_refresh_after_reconnect(emulator: Emulator):
     )
 
     # Drop connection
-    connect_signal.clear()
     await emulator.stop()
     await disconnect_signal.wait()
 

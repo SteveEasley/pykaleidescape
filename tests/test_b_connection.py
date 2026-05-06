@@ -214,14 +214,12 @@ async def test_reconnect_calls_on_reconnect(emulator: Emulator):
     await connection.connect(
         "127.0.0.1", port=10001, timeout=1, reconnect=True, reconnect_delay=0.5
     )
-    await connect_signal.wait()
     assert connection.state == STATE_CONNECTED
 
     # Callback should NOT have been called during initial connect
     assert not callback_called.is_set()
 
     # Drop and reconnect
-    connect_signal.clear()
     await emulator.stop()
     await disconnect_signal.wait()
 
