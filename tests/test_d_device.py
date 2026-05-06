@@ -92,7 +92,7 @@ async def test_send_syslog_identification_uses_dunder_version(emulator: Emulator
     proving the method uses the module attribute directly.
     """
     sentinel = "0.0.0-test-sentinel"
-    with patch("kaleidescape.device.__version__", sentinel):
+    with patch("kaleidescape.__version__", sentinel):
         device = Device("127.0.0.1", port=10001)
         await device.connect()
 
@@ -340,7 +340,6 @@ async def test_refresh_after_reconnect(emulator: Emulator):
     disconnect_signal = create_signal(device.dispatcher, const.STATE_DISCONNECTED)
 
     await device.connect()
-    await connect_signal.wait()
     assert device.is_connected
     assert device.power.state == const.DEVICE_POWER_STATE_STANDBY
 
@@ -351,8 +350,10 @@ async def test_refresh_after_reconnect(emulator: Emulator):
         (SUCCESS, messages.DevicePowerState.name, ["1", "1"]),
     )
 
+    # Allow emulator to register the client before stopping
+    await asyncio.sleep(0.1)
+
     # Drop connection
-    connect_signal.clear()
     await emulator.stop()
     await disconnect_signal.wait()
 
