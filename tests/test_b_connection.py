@@ -219,6 +219,9 @@ async def test_reconnect_calls_on_reconnect(emulator: Emulator):
     # Callback should NOT have been called during initial connect
     assert not callback_called.is_set()
 
+    # Allow emulator to register the client before stopping
+    await asyncio.sleep(0.1)
+
     # Drop and reconnect
     await emulator.stop()
     await disconnect_signal.wait()

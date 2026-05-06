@@ -350,6 +350,9 @@ async def test_refresh_after_reconnect(emulator: Emulator):
         (SUCCESS, messages.DevicePowerState.name, ["1", "1"]),
     )
 
+    # Allow emulator to register the client before stopping
+    await asyncio.sleep(0.1)
+
     # Drop connection
     await emulator.stop()
     await disconnect_signal.wait()
