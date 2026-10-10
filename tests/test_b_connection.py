@@ -156,7 +156,7 @@ async def test_unhandled_exception_triggers_reconnect(emulator: Emulator):
     assert connection.state == STATE_CONNECTED
 
     # Allow emulator to register the client
-    await asyncio.sleep(0)
+    await asyncio.sleep(0.1)
 
     # Patch Response.factory to raise an unexpected exception, simulating an
     # unhandled error in the response handler loop.
