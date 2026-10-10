@@ -1,5 +1,7 @@
 """Classes providing virtualized access to hardware devices."""
 
+# pylint: disable=cyclic-import
+
 from __future__ import annotations
 
 import asyncio
@@ -107,7 +109,7 @@ class Device:
 
     async def _send_syslog_identification(self) -> None:
         """Send module identification to syslog for Kaleidescape support."""
-        from . import __version__
+        from . import __version__  # pylint: disable=import-outside-toplevel
 
         await self._send(
             messages.SendToSyslog,
