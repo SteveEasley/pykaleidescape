@@ -77,7 +77,10 @@ async def test_connect_sends_syslog_identification(emulator: Emulator):
     ]
     assert len(syslog_requests) == 1
     assert syslog_requests[0].fields[0] == "INFORMATION"
-    assert syslog_requests[0].fields[1] == f"pykaleidescape version {kaleidescape.__version__}"
+    assert (
+        syslog_requests[0].fields[1]
+        == f"pykaleidescape version {kaleidescape.__version__}"
+    )
 
     await device.disconnect()
 

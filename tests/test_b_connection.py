@@ -194,7 +194,9 @@ async def test_connect_does_not_dispatch_connected(emulator: Emulator):
     # Give any pending tasks a chance to run
     await asyncio.sleep(0.05)
 
-    assert not signal_received, "STATE_CONNECTED should not be dispatched during initial connect"
+    assert not signal_received, (
+        "STATE_CONNECTED should not be dispatched during initial connect"
+    )
 
 
 @pytest.mark.asyncio

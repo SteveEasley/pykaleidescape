@@ -36,9 +36,9 @@ class Connection:
         self._on_event: (
             Callable[[Response], Coroutine[object, object, object]] | None
         ) = on_event
-        self._on_reconnect: (
-            Callable[[], Coroutine[object, object, object]] | None
-        ) = on_reconnect
+        self._on_reconnect: Callable[[], Coroutine[object, object, object]] | None = (
+            on_reconnect
+        )
 
         self._ip: str | None = None
         self._port: int | None = None
