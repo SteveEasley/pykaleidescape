@@ -24,7 +24,7 @@ SEQ_FORMAT = re.compile(r"^(?:\d|!)/")
 STATUS_FORMAT = re.compile(r"^\d\d\d:")
 NAME_FORMAT = re.compile(r"^(?:([^:]+):/?|/)")
 
-registry = {}
+registry: dict[str, type[Response]] = {}
 
 _LOGGER = logging.getLogger(__name__)
 

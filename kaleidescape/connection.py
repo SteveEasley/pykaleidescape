@@ -7,7 +7,7 @@ import contextlib
 import logging
 import socket
 from collections.abc import Callable, Coroutine
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from . import const
 from .error import KaleidescapeError, MessageParseError, format_error
@@ -295,4 +295,4 @@ class Connection:
         except OSError as err:
             raise ConnectionError(f"Failed to resolve host {host}") from err
 
-        return addrinfo[0][4][0]
+        return cast(str, addrinfo[0][4][0])
