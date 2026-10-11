@@ -309,7 +309,7 @@ class Device:
 
     async def set_volume_capabilities(self, value: int) -> None:
         """Send volume capabilities event."""
-        if not isinstance(value, int):
+        if not isinstance(value, int) or isinstance(value, bool):
             raise TypeError("Value must be an integer")
         if value < 0 or value > 31:
             raise ValueError("Value must be between 0 and 31 inclusive")
@@ -319,7 +319,7 @@ class Device:
 
     async def set_volume_level(self, level: int) -> None:
         """Send volume level event."""
-        if not isinstance(level, int):
+        if not isinstance(level, int) or isinstance(level, bool):
             raise TypeError("Level must be an integer")
         if level < 0 or level > 100:
             raise ValueError("Level must be between 0 and 100 inclusive")
