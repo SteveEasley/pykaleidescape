@@ -106,6 +106,8 @@ class Device:
 
         await self._send_syslog_identification()
 
+        await self.refresh()
+
     async def _send_syslog_identification(self) -> None:
         """Send module identification to syslog for Kaleidescape support."""
         await self._send(
@@ -135,6 +137,7 @@ class Device:
         """Sync device state."""
         if not self.is_connected:
             await self.connect()
+            return
 
         if self.power.state != const.DEVICE_POWER_STATE_ON:
             return

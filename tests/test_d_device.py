@@ -126,6 +126,33 @@ async def test_connect_sends_syslog_identification(emulator: Emulator, device: D
 
 
 @pytest.mark.asyncio
+async def test_connect_while_playing_loads_playback_state(
+    emulator: Emulator, device: Device
+):
+    """Test connecting to a device that is already playing loads playback state."""
+    mock_power_on(emulator)
+    emulator.register_mock_command(
+        ("01",),
+        messages.GetHighlightedSelection.name,
+        (SUCCESS, messages.HighlightedSelection.name, [CONTENT_HANDLE]),
+    )
+    emulator.register_mock_command(
+        ("01",),
+        messages.GetPlayStatus.name,
+        (SUCCESS, messages.PlayStatus.name, play_status_fields("2")),
+    )
+
+    await device.connect()
+
+    assert len(emulator.requests_named(messages.GetUiState.name)) == 1
+    assert device.power.state == const.DEVICE_POWER_STATE_ON
+    assert device.osd.ui_screen == const.UI_STATE_SCREEN_MOVIE_LIST
+    assert device.automation.movie_location == const.MOVIE_LOCATION_CONTENT
+    assert device.movie.play_status == const.PLAY_STATUS_PLAYING
+    assert device.movie.title == "Turtle Odyssey"
+
+
+@pytest.mark.asyncio
 async def test_get_available_devices(device: Device):
     """Test get available devices."""
     await device.connect()
@@ -148,6 +175,17 @@ async def test_refresh_in_standby(emulator: Emulator, device: Device):
     assert device.is_connected
     assert device.power.state == const.DEVICE_POWER_STATE_STANDBY
     assert not emulator.requests_named(messages.GetUiState.name)
+
+
+@pytest.mark.asyncio
+async def test_refresh_before_connect_queries_once(emulator: Emulator, device: Device):
+    """Test refresh on an unconnected device connects and queries playback once."""
+    mock_power_on(emulator)
+
+    await device.refresh()
+
+    assert device.is_connected
+    assert len(emulator.requests_named(messages.GetUiState.name)) == 1
 
 
 @pytest.mark.asyncio
