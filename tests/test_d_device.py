@@ -87,15 +87,13 @@ async def test_connect_sends_syslog_identification(emulator: Emulator):
 
 @pytest.mark.asyncio
 async def test_send_syslog_identification_uses_dunder_version(emulator: Emulator):
-    """Test _send_syslog_identification reads from __version__, not importlib.metadata.
+    """Test _send_syslog_identification reads __version__, not importlib.metadata.
 
-    The commit switched from importlib.metadata.version() to kaleidescape.__version__
-    because importlib.metadata fails in PyInstaller bundles. This test patches __version__
-    to a sentinel value and confirms that exact value appears in the syslog message,
-    proving the method uses the module attribute directly.
+    importlib.metadata fails in PyInstaller bundles, so the version must come from
+    the module attribute. Patching it to a sentinel proves the syslog message uses it.
     """
     sentinel = "0.0.0-test-sentinel"
-    with patch("kaleidescape.__version__", sentinel):
+    with patch("kaleidescape.device.__version__", sentinel):
         device = Device("127.0.0.1", port=10001)
         await device.connect()
 

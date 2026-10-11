@@ -1,7 +1,5 @@
 """Classes providing virtualized access to hardware devices."""
 
-# pylint: disable=cyclic-import
-
 from __future__ import annotations
 
 import asyncio
@@ -11,6 +9,7 @@ from typing import TYPE_CHECKING, TypeVar, cast
 
 from . import const
 from . import message as messages
+from ._version import __version__
 from .connection import Connection
 from .dispatcher import Dispatcher
 
@@ -109,8 +108,6 @@ class Device:
 
     async def _send_syslog_identification(self) -> None:
         """Send module identification to syslog for Kaleidescape support."""
-        from . import __version__  # pylint: disable=import-outside-toplevel
-
         await self._send(
             messages.SendToSyslog,
             0,

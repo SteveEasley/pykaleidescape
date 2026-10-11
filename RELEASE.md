@@ -11,7 +11,7 @@ This project publishes to PyPI using GitHub Actions and Trusted Publishing.
 
 ## Create a New Release
 
-1. Update package version in `kaleidescape/__init__.py`:
+1. Update package version in `kaleidescape/_version.py`:
    - Set `__version__ = "X.Y.Z"` (example: `1.1.2`).
 2. Run quality checks locally:
    - `python -m pip install -e ".[dev]"`

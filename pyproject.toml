@@ -43,7 +43,7 @@ packages = ["kaleidescape"]
 kaleidescape = ["py.typed"]
 
 [tool.setuptools.dynamic]
-version = { attr = "kaleidescape.__version__" }
+version = { attr = "kaleidescape._version.__version__" }
 
 [tool.pytest.ini_options]
 log_level = "DEBUG"
