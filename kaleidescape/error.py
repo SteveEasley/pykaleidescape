@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Mapping
+from collections.abc import Mapping
 
 from . import const
 

@@ -33,6 +33,7 @@ from kaleidescape import const, Device
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 async def main() -> None:
     device = Device("<ipaddress>")
 
@@ -157,6 +158,7 @@ The library is event-driven: incoming protocol messages are parsed into response
   ```python
   async def handle_event(event: str, *args) -> None:
       print("Event received:", event, args)
+
 
   device.dispatcher.connect(handle_event)
   ```

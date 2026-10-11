@@ -14,7 +14,7 @@ from kaleidescape.message import MessageParser
 _LOGGER = logging.getLogger(__name__)
 
 
-# pylint: disable=missing-function-docstring, invalid-name, line-too-long, broad-exception-raised
+# pylint: disable=missing-function-docstring, invalid-name, line-too-long
 # fmt: off
 
 # Returns the inverse of map
@@ -325,7 +325,7 @@ class Emulator:
     async def start(self):
         """Starts the emulator."""
         if self._server:
-            raise Exception("Already started")
+            raise RuntimeError("Already started")
         self._server = await asyncio.start_server(
             self._connection_handler, self._host, self._port
         )

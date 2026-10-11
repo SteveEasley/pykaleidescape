@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import socket
 from collections.abc import Callable, Coroutine
@@ -113,7 +114,7 @@ class Connection:
         except ConnectionError:
             # Don't allow subclasses of ConnectionError to be cast as OSErrors below
             raise
-        except (OSError, asyncio.TimeoutError) as err:
+        except (TimeoutError, OSError) as err:
             # Generalize connection errors
             raise ConnectionError(format_error(err)) from err
 
@@ -145,12 +146,10 @@ class Connection:
             except (asyncio.IncompleteReadError, OSError) as err:
                 asyncio.create_task(self._handle_connection_error(err))
                 return
-            except MessageParseError as err:
-                _LOGGER.exception(err)
+            except MessageParseError:
+                _LOGGER.exception("Failed to parse response")
             except Exception as err:  # pylint: disable=broad-except
-                _LOGGER.exception(
-                    "Unhandled exception %s('%s')", type(err).__name__, err
-                )
+                _LOGGER.exception("Unhandled exception in response handler")
                 asyncio.create_task(self._handle_connection_error(err))
                 return
 
@@ -194,8 +193,8 @@ class Connection:
                             )
                     self._dispatcher.send(const.STATE_CONNECTED)
                     _LOGGER.info("Reconnected to %s", self._ip)
-        except Exception as err:  # pylint: disable=broad-except
-            _LOGGER.exception("Unhandled exception %s('%s')", type(err).__name__, err)
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Unhandled exception in reconnect")
             raise
 
     async def disconnect(self):
@@ -206,11 +205,8 @@ class Connection:
         # Cancel pending reconnect task
         if self._reconnect_task:
             self._reconnect_task.cancel()
-            try:
+            with contextlib.suppress(BaseException):
                 await self._reconnect_task
-            except:  # pylint: disable=bare-except
-                # Ensure completes
-                pass
             self._reconnect_task = None
 
         await self._disconnect()
@@ -223,11 +219,8 @@ class Connection:
         """Disconnect from server."""
         if self._response_handler_task:
             self._response_handler_task.cancel()
-            try:
+            with contextlib.suppress(BaseException):
                 await self._response_handler_task
-            except:  # pylint: disable=bare-except
-                # Ensure completes
-                pass
             self._response_handler_task = None
 
         if self._writer:
@@ -253,7 +246,7 @@ class Connection:
                 # Devices can only handle 10 concurrent requests. Find next available
                 # sequence number not in use.
                 request.seq = next(
-                    (i for i in range(0, 10) if i not in self._pending_requests)
+                    i for i in range(10) if i not in self._pending_requests
                 )
             except StopIteration as e:
                 await asyncio.sleep(wait)
@@ -271,7 +264,7 @@ class Connection:
             await writer.drain()
             _LOGGER.debug("Request sent '%s'", request)
             response = await asyncio.wait_for(request.wait(), self._timeout)
-        except (OSError, ConnectionError, asyncio.TimeoutError) as err:
+        except (TimeoutError, OSError, ConnectionError) as err:
             msg = f"Request '{request}' failed with '{format_error(err)}'"
             _LOGGER.warning(msg)
             raise KaleidescapeError(msg) from err

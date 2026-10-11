@@ -126,7 +126,7 @@ async def test_get_device_info(emulator: Emulator, connection: Connection):
 async def test_concurrency(emulator: Emulator, connection: Connection):
     """Test command concurrency handling."""
     requests: list[messages.GetAvailableDevices] = []
-    for _ in range(0, 12):
+    for _ in range(12):
         requests.append(messages.GetAvailableDevices())
 
     responses = await asyncio.gather(*[r.send(connection) for r in requests])

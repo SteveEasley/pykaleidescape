@@ -58,7 +58,6 @@ filterwarnings = [
 required-version = ">=0.16.10"
 exclude = ["examples"]
 lint.extend-select = ["I"]
-lint.ignore = ["E722"]
 
 [tool.mypy]
 disable_error_code = "annotation-unchecked"

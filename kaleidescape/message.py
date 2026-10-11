@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from . import const
 from .const import LOCAL_CPDID
@@ -284,8 +284,8 @@ class Request(Message):
 
             try:
                 await asyncio.wait_for(collector(), connection.timeout)
-            except asyncio.TimeoutError as error:
-                err = f"Command {repr(self)} timed out waiting for responses"
+            except TimeoutError as error:
+                err = f"Command {self!r} timed out waiting for responses"
                 _LOGGER.warning(err)
                 raise KaleidescapeError(err) from error
 
@@ -591,7 +591,7 @@ class DevicePowerState(Response):
     """Class for DEVICE_POWER_STATE messages."""
 
     name = const.DEVICE_POWER_STATE
-    index = {
+    index: ClassVar[dict[str, dict[int, str]]] = {
         "power": {
             0: const.DEVICE_POWER_STATE_STANDBY,
             1: const.DEVICE_POWER_STATE_ON,
@@ -624,7 +624,7 @@ class SystemReadinessState(Response):
     """Class for SYSTEM_READINESS_STATE messages."""
 
     name = const.SYSTEM_READINESS_STATE
-    index = {
+    index: ClassVar[dict[int, str]] = {
         0: const.SYSTEM_READINESS_STATE_READY,
         1: const.SYSTEM_READINESS_STATE_BECOMING_READY,
         2: const.SYSTEM_READINESS_STATE_IDLE,
@@ -647,7 +647,7 @@ class PlayStatus(Response):
     """Class for PLAY_STATUS messages."""
 
     name = const.PLAY_STATUS
-    index = {
+    index: ClassVar[dict[int, str]] = {
         0: const.PLAY_STATUS_NONE,
         1: const.PLAY_STATUS_PAUSED,
         2: const.PLAY_STATUS_PLAYING,
@@ -743,7 +743,7 @@ class UiState(Response):
     """Class for UI_STATE messages."""
 
     name = const.UI_STATE
-    index = {
+    index: ClassVar[dict[str, dict[int, str]]] = {
         const.UI_STATE_SCREEN: {
             0: const.UI_STATE_SCREEN_UNKNOWN,
             1: const.UI_STATE_SCREEN_MOVIE_LIST,
@@ -878,7 +878,7 @@ class ContentDetailsOverview(Response):
     @property
     def field_title(self) -> str:
         """Returns title."""
-        return self.details["Title"] if "Title" in self.details else ""
+        return self.details.get("Title", "")
 
     @property
     def field_cover_url(self) -> str:
@@ -1009,7 +1009,7 @@ class MovieLocation(Response):
     """Class for MOVIE_LOCATION messages."""
 
     name = const.MOVIE_LOCATION
-    index = {
+    index: ClassVar[dict[int, str]] = {
         0: const.MOVIE_LOCATION_NONE,
         3: const.MOVIE_LOCATION_CONTENT,
         4: const.MOVIE_LOCATION_INTERMISSION,
@@ -1034,7 +1034,7 @@ class MovieMediaType(Response):
     """Class for MOVIE_MEDIA_TYPE messages."""
 
     name = const.MOVIE_MEDIA_TYPE
-    index = {
+    index: ClassVar[dict[int, str]] = {
         0: const.MOVIE_MEDIA_TYPE_NONE,
         1: const.MOVIE_MEDIA_TYPE_DVD,
         2: const.MOVIE_MEDIA_TYPE_STREAM,
@@ -1058,7 +1058,7 @@ class VideoColor(Response):
     """Class for VIDEO_COLOR messages."""
 
     name = const.VIDEO_COLOR
-    index = {
+    index: ClassVar[dict[str, dict[int, str]]] = {
         const.VIDEO_COLOR_EOTF: {
             0: const.VIDEO_COLOR_EOTF_UNKNOWN,
             1: const.VIDEO_COLOR_EOTF_SDR,
@@ -1119,7 +1119,7 @@ class VideoMode(Response):
     """Class for VIDEO_MODE messages."""
 
     name = const.VIDEO_MODE
-    index = {
+    index: ClassVar[dict[int, str]] = {
         0: const.VIDEO_MODE_NONE,
         1: const.VIDEO_MODE_480I60_4X3,
         2: const.VIDEO_MODE_480I60_16X9,
@@ -1175,7 +1175,7 @@ class ScreenMask(Response):
     """Class for SCREEN_MASK messages."""
 
     name = const.SCREEN_MASK
-    index = {
+    index: ClassVar[dict[int, str]] = {
         0: const.SCREEN_MASK_ASPECT_RATIO_NONE,
         1: const.SCREEN_MASK_ASPECT_RATIO_133,
         2: const.SCREEN_MASK_ASPECT_RATIO_166,
@@ -1259,7 +1259,7 @@ class CinemascapeMode(Response):
     """Class for CINEMASCAPE_MODE messages."""
 
     name = const.CINEMASCAPE_MODE
-    index = {
+    index: ClassVar[dict[int, str]] = {
         0: const.CINEMASCAPE_MODE_NONE,
         1: const.CINEMASCAPE_MODE_ANAMORPHIC,
         2: const.CINEMASCAPE_MODE_LETTERBOX,
