@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 
 from kaleidescape import const, error
@@ -17,9 +18,37 @@ _LOGGER = logging.getLogger(__name__)
 # pylint: disable=missing-function-docstring, invalid-name, line-too-long
 # fmt: off
 
-# Returns the inverse of map
-def xo(val: dict[int, str]) -> dict[str, int]:
-    return {v: k for k, v in val.items()}
+SIMPLE_COMMANDS: tuple[type[messages.Request], ...] = (
+    messages.LeaveStandby,
+    messages.EnterStandby,
+    messages.Play,
+    messages.Pause,
+    messages.Stop,
+    messages.Next,
+    messages.Previous,
+    messages.Replay,
+    messages.ScanForward,
+    messages.ScanReverse,
+    messages.Select,
+    messages.Up,
+    messages.Down,
+    messages.Left,
+    messages.Right,
+    messages.Cancel,
+    messages.StatusAndSettings,
+    messages.IntermissionToggle,
+    messages.GoMovieList,
+    messages.GoMovieCollections,
+    messages.GoMovies,
+    messages.GoMovieCovers,
+    messages.MenuToggle,
+)
+
+
+class NoResponse(messages.Request):
+    """Test-only command the emulator accepts but never answers."""
+
+    name = "_NO_RESPONSE"
 
 
 class Request:
@@ -87,12 +116,13 @@ class Client:
     """Class representing a connection to Emulator."""
 
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        self._reader = reader
+        self.reader = reader
         self._writer = writer
 
     async def disconnect(self):
-        self._reader.feed_eof()
         self._writer.close()
+        with contextlib.suppress(OSError):
+            await self._writer.wait_closed()
 
     async def _write(self, payload: str):
         data = (payload + SEPARATOR).encode("latin-1")
@@ -116,14 +146,16 @@ class Client:
 class Emulator:
     """Class for emulating a Kaleidescape system."""
 
-    def __init__(self, host: str, port: int = const.DEFAULT_PROTOCOL_PORT):
-        """Initialize the emulator."""
+    def __init__(self, host: str, port: int = 0):
+        """Initialize the emulator. Port 0 binds a free port on first start."""
         self._host = host
         self._port = port
         self._clients: list[Client] = []
-        self._server: asyncio.base_events.Server | None = None
+        self._client_tasks: set[asyncio.Task] = set()
+        self._server: asyncio.Server | None = None
         self._mock_commands: dict[str, dict] = {}
         self.received_requests: list[Request] = []
+        self._client_connected = asyncio.Event()
 
         self.register_mock_command(
             ("01", "#00000000123A"),
@@ -246,51 +278,12 @@ class Emulator:
             messages.EnableEvents.name,
             (SUCCESS,),
         )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            messages.LeaveStandby.name,
-            (SUCCESS,),
-        )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            messages.EnterStandby.name,
-            (SUCCESS,),
-        )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            messages.StatusAndSettings.name,
-            (SUCCESS,),
-        )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            messages.IntermissionToggle.name,
-            (SUCCESS,),
-        )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            messages.GoMovieList.name,
-            (SUCCESS,),
-        )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            messages.GoMovieCollections.name,
-            (SUCCESS,),
-        )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            messages.GoMovies.name,
-            (SUCCESS,),
-        )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            messages.GoMovieCovers.name,
-            (SUCCESS,),
-        )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            messages.MenuToggle.name,
-            (SUCCESS,),
-        )
+        for command in SIMPLE_COMMANDS:
+            self.register_mock_command(
+                ("01", "#00000000123A"),
+                command.name,
+                (SUCCESS,),
+            )
         self.register_mock_command(
             ("01",),
             messages.SendEvent.name,
@@ -303,44 +296,44 @@ class Emulator:
         )
         self.register_mock_command(
             ("01", "#00000000123A"),
-            "PLAY",  # Fake command for simulating slow work
-            (SUCCESS,),
+            NoResponse.name,
+            [],
         )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            "PAUSE",  # Fake command for simulating slow work
-            (SUCCESS,),
-        )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            "STOP",  # Fake command for simulating slow work
-            (SUCCESS,),
-        )
-        self.register_mock_command(
-            ("01", "#00000000123A"),
-            "_SLEEP",  # Fake command for simulating slow work
-            (SUCCESS,),
-        )
+
+    @property
+    def port(self) -> int:
+        """Returns the port the emulator listens on."""
+        return self._port
 
     async def start(self):
-        """Starts the emulator."""
+        """Starts the emulator, on the same port when restarted."""
         if self._server:
             raise RuntimeError("Already started")
+        self._client_connected.clear()
         self._server = await asyncio.start_server(
-            self._connection_handler, self._host, self._port
+            self._accept, self._host, self._port
         )
-        _LOGGER.debug("Started")
+        self._port = self._server.sockets[0].getsockname()[1]
+        _LOGGER.debug("Started on port %s", self._port)
 
     async def stop(self):
-        """Stops the emulator."""
+        """Stops the emulator and closes every client connection."""
         if self._server is None:
             return
-        for client in self._clients:
+        server = self._server
+        self._server = None
+        server.close()
+        # Closed here, not by the client tasks: a task cancelled before its first
+        # step never runs its cleanup.
+        for client in list(self._clients):
             await client.disconnect()
         self._clients.clear()
-        self._server.close()
-        self._server = None
-        await asyncio.sleep(0)
+        tasks = list(self._client_tasks)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await server.wait_closed()
+        self._client_connected.clear()
         _LOGGER.debug("Stopped")
 
     def register_mock_command(
@@ -354,25 +347,47 @@ class Emulator:
             self._mock_commands.setdefault(device_id, {})
             self._mock_commands[device_id][name] = msg
 
-    def change_mock_device_id(self, old_cpdid, new_cpdid):
-        self._mock_commands[new_cpdid] = dict(self._mock_commands[old_cpdid])
-        del self._mock_commands[old_cpdid]
+    async def wait_for_client(self) -> None:
+        """Waits until a client connection has been accepted.
 
-    def unregister_mock_device_ids(self, device_ids: tuple[str, ...]):
-        """Removes all simulated commands for device_id."""
-        for device_id in device_ids:
-            del self._mock_commands[device_id]
+        stop() only closes accepted clients, so a test that stops the emulator
+        right after connecting must wait for the accept to be handled first.
+        """
+        await self._client_connected.wait()
 
-    async def _connection_handler(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        """Main service loop for handling client connections."""
+    def requests_named(self, name: str) -> list[Request]:
+        """Returns the received requests with the given message name."""
+        return [r for r in self.received_requests if r.name == name]
+
+    def _accept(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        """Registers a new client connection synchronously, so stop() always sees it."""
+        if self._server is None:
+            # Accepted by the socket before stop() closed the server.
+            writer.close()
+            return
         client = Client(reader, writer)
         self._clients.append(client)
+        task = asyncio.create_task(self._serve(client))
+        self._client_tasks.add(task)
+        task.add_done_callback(self._client_tasks.discard)
+        self._client_connected.set()
         _LOGGER.debug("Client connected")
 
+    async def _serve(self, client: Client):
+        """Main service loop for a client connection."""
+        try:
+            await self._serve_requests(client)
+        finally:
+            with contextlib.suppress(ValueError):
+                self._clients.remove(client)
+            await client.disconnect()
+            _LOGGER.debug("Client disconnected")
+
+    async def _serve_requests(self, client: Client):
         while True:
             request = None
             try:
-                data = await reader.readuntil()
+                data = await client.reader.readuntil()
                 result = data.decode("latin-1").strip()
                 if not result:
                     continue
@@ -395,29 +410,18 @@ class Emulator:
                 elif isinstance(msgs, tuple):
                     msgs = [msgs]
 
-                if request.name == "_SLEEP":
-                    # 01/1/_SLEEP:1:  # Sleep 1s
-                    await asyncio.sleep(float(request.fields[0]))
-
                 for msg in msgs:
                     await client.send(Response(request.device_id, request.seq, *msg))
 
                 await asyncio.sleep(0.001)
 
-            except asyncio.IncompleteReadError:
-                # Occurs when the reader is being stopped
+            except (asyncio.IncompleteReadError, ConnectionError):
                 break
             except (error.MessageError, error.MessageParseError) as e:
                 device_id = request.device_id if request else "??"
                 seq = request.seq if request else -1
                 response = Response(device_id, seq, e.code, e.error)
                 await client.send(response)
-
-        try:
-            self._clients.remove(client)
-            _LOGGER.debug("Client disconnected")
-        except ValueError:
-            pass
 
     async def send_event(self, device_ids: list[str], status: int, name: str, fields: list[str] | None = None):
         """Sends an event message to device_ids."""

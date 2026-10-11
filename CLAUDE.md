@@ -58,4 +58,4 @@ Public exports from `kaleidescape/__init__.py`: `Device`, `Dispatcher`, `const`,
 
 ### Testing
 
-Tests use an in-process `Emulator` (in `tests/emulator.py`) so no physical hardware is needed. All tests are async (`pytest-asyncio`). The `conftest.py` provides `emulator` and `connection` fixtures. Test files are prefixed `test_a` through `test_d` reflecting the layer they cover (message → connection → command → device).
+Tests use an in-process `Emulator` (in `tests/emulator.py`) so no physical hardware is needed. All tests are async (`pytest-asyncio`). The `conftest.py` provides `emulator`, `connection` and `device` fixtures; the emulator binds a free port, exposed as `emulator.port`. Test files are prefixed `test_a` through `test_d` reflecting the layer they cover (message → connection → command → device).

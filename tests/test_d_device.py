@@ -1,11 +1,12 @@
 """Tests for device module."""
 
 import asyncio
+from collections.abc import Awaitable, Callable
+from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-import kaleidescape
 from kaleidescape import const
 from kaleidescape import message as messages
 from kaleidescape.connection import Connection
@@ -18,119 +19,53 @@ from .emulator import Emulator
 
 # pylint: disable=unused-argument
 
+CONTENT_HANDLE = "26-0.0-S_c446c8e2"
+
+
+def param_id(value: object) -> str | None:
+    """Names parametrized methods and classes in test ids."""
+    return getattr(value, "__name__", None)
+
+
+def play_status_fields(status: str) -> list[str]:
+    """Return PLAY_STATUS fields with the given play status and defaults elsewhere."""
+    return [status, "1", "00", "00000", "00000", "000", "00000", "00000"]
+
+
+def mock_power_on(emulator: Emulator) -> None:
+    """Make the emulator report the device as powered on."""
+    emulator.register_mock_command(
+        ("01",),
+        messages.GetDevicePowerState.name,
+        (SUCCESS, messages.DevicePowerState.name, ["1", "1"]),
+    )
+
+
+async def send_play_status(device: Device, emulator: Emulator, status: str) -> None:
+    """Send a PLAY_STATUS event and wait for the device to handle it."""
+    signal = create_signal(device.dispatcher, messages.PlayStatus.name)
+    await emulator.send_event(
+        [LOCAL_CPDID], SUCCESS, messages.PlayStatus.name, play_status_fields(status)
+    )
+    await asyncio.wait_for(signal.wait(), 1)
+
 
 @pytest.mark.asyncio
-async def test_init(emulator: Emulator):
+async def test_init(emulator: Emulator, device: Device):
     """Test initialization of device."""
-    device = Device("127.0.0.1", port=10001)
     assert isinstance(device.connection, Connection)
     assert isinstance(device.dispatcher, Dispatcher)
     assert device.host == "127.0.0.1"
-    assert device.port == 10001
+    assert device.port == emulator.port
     assert device.is_connected is False
     assert device.serial_number == ""
 
 
 @pytest.mark.asyncio
-async def test_connect(emulator: Emulator):
-    """Test initialization of device."""
-    device = Device("127.0.0.1", port=10001)
+async def test_connect(device: Device):
+    """Test connect loads system and power state, and disconnect disconnects."""
     await device.connect()
     assert device.is_connected
-
-    await device.disconnect()
-    assert not device.is_connected
-
-
-@pytest.mark.asyncio
-async def test_disconnect_during_reconnect(emulator: Emulator):
-    """Test Device.disconnect() cancels reconnect in STATE_RECONNECTING."""
-    device = Device("127.0.0.1", port=10001, reconnect=True, reconnect_delay=0.5)
-
-    disconnect_signal = create_signal(device.dispatcher, const.STATE_DISCONNECTED)
-
-    await device.connect()
-    assert device.is_connected
-
-    # Allow emulator to register the client before stopping
-    await asyncio.sleep(0.1)
-
-    # Drop connection to trigger library reconnect
-    await emulator.stop()
-    await disconnect_signal.wait()
-    assert device.connection.state == const.STATE_RECONNECTING
-
-    # Device.disconnect() should work even during STATE_RECONNECTING
-    await device.disconnect()
-    assert device.connection.state == const.STATE_DISCONNECTED
-    assert not device.is_connected
-
-
-@pytest.mark.asyncio
-async def test_connect_sends_syslog_identification(emulator: Emulator):
-    """Test that connect sends SEND_TO_SYSLOG for module identification."""
-    device = Device("127.0.0.1", port=10001)
-    await device.connect()
-
-    syslog_requests = [
-        r for r in emulator.received_requests if r.name == "SEND_TO_SYSLOG"
-    ]
-    assert len(syslog_requests) == 1
-    assert syslog_requests[0].fields[0] == "INFORMATION"
-    assert (
-        syslog_requests[0].fields[1]
-        == f"pykaleidescape version {kaleidescape.__version__}"
-    )
-
-    await device.disconnect()
-
-
-@pytest.mark.asyncio
-async def test_send_syslog_identification_uses_dunder_version(emulator: Emulator):
-    """Test _send_syslog_identification reads __version__, not importlib.metadata.
-
-    importlib.metadata fails in PyInstaller bundles, so the version must come from
-    the module attribute. Patching it to a sentinel proves the syslog message uses it.
-    """
-    sentinel = "0.0.0-test-sentinel"
-    with patch("kaleidescape.device.__version__", sentinel):
-        device = Device("127.0.0.1", port=10001)
-        await device.connect()
-
-    syslog_requests = [
-        r for r in emulator.received_requests if r.name == "SEND_TO_SYSLOG"
-    ]
-    assert len(syslog_requests) == 1
-    assert syslog_requests[0].fields[1] == f"pykaleidescape version {sentinel}"
-
-    await device.disconnect()
-
-
-@pytest.mark.asyncio
-async def test_get_available_devices(emulator: Emulator):
-    """Test get available devices."""
-    device = Device("127.0.0.1", port=10001)
-    await device.connect()
-    fields = await device.get_available_devices()
-    assert fields == [LOCAL_CPDID]
-    await device.disconnect()
-
-
-@pytest.mark.asyncio
-async def test_get_available_serial_numbers(emulator: Emulator):
-    """Test get available devices."""
-    device = Device("127.0.0.1", port=10001)
-    await device.connect()
-    fields = await device.get_available_serial_numbers()
-    assert fields == ["00000000123A"]
-    await device.disconnect()
-
-
-@pytest.mark.asyncio
-async def test_refresh(emulator: Emulator):
-    """Test refreshing system updates state."""
-    device = Device("127.0.0.1", port=10001)
-    await device.refresh()
     assert device.system.serial_number == "00000000123A"
     assert device.serial_number == "00000000123A"
     assert device.system.cpdid == ""
@@ -145,13 +80,79 @@ async def test_refresh(emulator: Emulator):
     assert device.power.readiness == const.SYSTEM_READINESS_STATE_IDLE
     assert device.is_server_only is False
     assert device.is_movie_player is True
+
     await device.disconnect()
+    assert not device.is_connected
 
 
 @pytest.mark.asyncio
-async def test_refresh_state(emulator: Emulator):
-    """Test refreshing state updates state."""
-    device = Device("127.0.0.1", port=10001)
+async def test_disconnect_during_reconnect(emulator: Emulator):
+    """Test Device.disconnect() cancels reconnect in STATE_RECONNECTING."""
+    device = Device(
+        "127.0.0.1", port=emulator.port, reconnect=True, reconnect_delay=0.1
+    )
+    disconnect_signal = create_signal(device.dispatcher, const.STATE_DISCONNECTED)
+
+    await device.connect()
+    assert device.is_connected
+
+    await emulator.wait_for_client()
+    await emulator.stop()
+    await disconnect_signal.wait()
+    assert device.connection.state == const.STATE_RECONNECTING
+
+    await device.disconnect()
+    assert device.connection.state == const.STATE_DISCONNECTED
+    assert not device.is_connected
+
+
+@pytest.mark.asyncio
+async def test_connect_sends_syslog_identification(emulator: Emulator, device: Device):
+    """Test connect sends the version from __version__ to syslog.
+
+    importlib.metadata fails in PyInstaller bundles, so the version must come from
+    the module attribute. Patching it to a sentinel proves the syslog message uses it.
+    """
+    sentinel = "0.0.0-test-sentinel"
+    with patch("kaleidescape.device.__version__", sentinel):
+        await device.connect()
+
+    syslog_requests = emulator.requests_named(messages.SendToSyslog.name)
+    assert len(syslog_requests) == 1
+    assert syslog_requests[0].fields == [
+        "INFORMATION",
+        f"pykaleidescape version {sentinel}",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_get_available_devices(device: Device):
+    """Test get available devices."""
+    await device.connect()
+    fields = await device.get_available_devices()
+    assert fields == [LOCAL_CPDID]
+
+
+@pytest.mark.asyncio
+async def test_get_available_serial_numbers(device: Device):
+    """Test get available serial numbers."""
+    await device.connect()
+    fields = await device.get_available_serial_numbers()
+    assert fields == ["00000000123A"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_in_standby(emulator: Emulator, device: Device):
+    """Test refresh connects but skips playback queries while in standby."""
+    await device.refresh()
+    assert device.is_connected
+    assert device.power.state == const.DEVICE_POWER_STATE_STANDBY
+    assert not emulator.requests_named(messages.GetUiState.name)
+
+
+@pytest.mark.asyncio
+async def test_power_on_event_refreshes_state(emulator: Emulator, device: Device):
+    """Test a power-on event updates power state and refreshes playback state."""
     await device.refresh()
 
     assert device.power.state == const.DEVICE_POWER_STATE_STANDBY
@@ -159,263 +160,258 @@ async def test_refresh_state(emulator: Emulator):
     assert device.automation.movie_location == const.MOVIE_LOCATION_NONE
 
     signal = create_signal(device.dispatcher, messages.DevicePowerState.name)
-
-    emulator.register_mock_command(
-        ("01",),
-        messages.GetDevicePowerState.name,
-        (SUCCESS, messages.DevicePowerState.name, ["1", "1"]),
-    )
-
     await emulator.send_event(
         [LOCAL_CPDID], SUCCESS, messages.DevicePowerState.name, ["1"]
     )
-
     await asyncio.wait_for(signal.wait(), 1)
 
     assert device.power.state == const.DEVICE_POWER_STATE_ON
     assert device.osd.ui_screen == const.UI_STATE_SCREEN_MOVIE_LIST
     assert device.automation.movie_location == const.MOVIE_LOCATION_CONTENT
 
-    await device.disconnect()
-
 
 @pytest.mark.asyncio
-async def test_events(emulator: Emulator):
-    """Test device events."""
-    device = Device("127.0.0.1", port=10001)
+async def test_events(emulator: Emulator, device: Device):
+    """Test an event updates device state and is dispatched to listeners."""
     await device.connect()
-    # Setup to listen for signal emit
+    assert device.power.readiness == const.SYSTEM_READINESS_STATE_IDLE
+
     signal = create_signal(device.dispatcher, messages.SystemReadinessState.name)
-    # Produce a signal
     await emulator.send_event(
         [LOCAL_CPDID], SUCCESS, messages.SystemReadinessState.name, ["0"]
     )
-    # Assert signal is received
     await asyncio.wait_for(signal.wait(), 1)
-
-    await device.disconnect()
+    assert device.power.readiness == const.SYSTEM_READINESS_STATE_READY
 
 
 @pytest.mark.asyncio
-async def test_commands(emulator: Emulator):
-    """Test commands."""
-    device = Device("127.0.0.1", port=10001)
+@pytest.mark.parametrize(
+    ("method", "request_type"),
+    [
+        (Device.leave_standby, messages.LeaveStandby),
+        (Device.enter_standby, messages.EnterStandby),
+        (Device.play, messages.Play),
+        (Device.pause, messages.Pause),
+        (Device.stop, messages.Stop),
+        (Device.next, messages.Next),
+        (Device.previous, messages.Previous),
+        (Device.replay, messages.Replay),
+        (Device.scan_forward, messages.ScanForward),
+        (Device.scan_reverse, messages.ScanReverse),
+        (Device.select, messages.Select),
+        (Device.up, messages.Up),
+        (Device.down, messages.Down),
+        (Device.left, messages.Left),
+        (Device.right, messages.Right),
+        (Device.cancel, messages.Cancel),
+        (Device.status_and_settings, messages.StatusAndSettings),
+        (Device.intermission_toggle, messages.IntermissionToggle),
+        (Device.go_movie_list, messages.GoMovieList),
+        (Device.go_movie_collections, messages.GoMovieCollections),
+        (Device.go_movies, messages.GoMovies),
+        (Device.go_movie_covers, messages.GoMovieCovers),
+        (Device.menu_toggle, messages.MenuToggle),
+    ],
+    ids=param_id,
+)
+async def test_commands(
+    emulator: Emulator,
+    device: Device,
+    method: Callable[[Device], Awaitable[None]],
+    request_type: type[messages.Request],
+):
+    """Test each command method sends its protocol command."""
     await device.connect()
-    await device.leave_standby()
-    await device.play()
-    await device.pause()
-    await device.stop()
-    await device.status_and_settings()
-    await device.intermission_toggle()
-    await device.go_movie_list()
-    await device.go_movie_collections()
-    await device.go_movies()
-    await device.go_movie_covers()
-    await device.menu_toggle()
-    await device.enter_standby()
 
-    await device.disconnect()
+    await method(device)
+
+    sent = emulator.requests_named(request_type.name)
+    assert len(sent) == 1
+    assert sent[0].fields == []
 
 
 @pytest.mark.asyncio
-async def test_get_content_details(emulator: Emulator):
+async def test_get_content_details(device: Device):
     """Test command involving multiline response."""
-    device = Device("127.0.0.1", port=10001)
     await device.refresh()
-    res = await device.get_content_details("26-0.0-S_c446c8e2")
-    assert res.field_handle == "26-0.0-S_c446c8e2"
+    res = await device.get_content_details(CONTENT_HANDLE)
+    assert res.field_handle == CONTENT_HANDLE
     assert res.field_table == "movies"
     assert res.field_title == "Turtle Odyssey"
 
-    await device.disconnect()
-
 
 @pytest.mark.asyncio
-async def test_play_status_with_empty_highlighted(emulator: Emulator):
-    """Test that a PlayStatus event does not crash when osd.highlighted is empty."""
-    device = Device("127.0.0.1", port=10001)
+async def test_play_status_with_empty_highlighted(emulator: Emulator, device: Device):
+    """Test playback starting with no highlighted title skips content details."""
+    mock_power_on(emulator)
     await device.refresh()
-
-    # Put device into power ON state
-    emulator.register_mock_command(
-        ("01",),
-        messages.GetDevicePowerState.name,
-        (SUCCESS, messages.DevicePowerState.name, ["1", "1"]),
-    )
-    power_signal = create_signal(device.dispatcher, messages.DevicePowerState.name)
-    await emulator.send_event(
-        [LOCAL_CPDID], SUCCESS, messages.DevicePowerState.name, ["1"]
-    )
-    await asyncio.wait_for(power_signal.wait(), 1)
     assert device.power.state == const.DEVICE_POWER_STATE_ON
-
-    # Confirm highlighted is empty (default emulator returns "")
     assert device.osd.highlighted == ""
 
-    # Transition play status from NONE to playing with an empty highlighted handle.
-    play_signal = create_signal(device.dispatcher, messages.PlayStatus.name)
-    await emulator.send_event(
-        [LOCAL_CPDID],
-        SUCCESS,
-        messages.PlayStatus.name,
-        ["2", "1", "00", "00000", "00000", "000", "00000", "00000"],
-    )
-    await asyncio.wait_for(play_signal.wait(), 1)
+    await send_play_status(device, emulator, "2")
+
     assert device.movie.play_status == const.PLAY_STATUS_PLAYING
-
-    await device.disconnect()
-
-
-@pytest.mark.asyncio
-async def test_set_volume_capabilities(emulator: Emulator):
-    """Test test_set_volume_capabilities."""
-    device = Device("127.0.0.1", port=10001)
-    await device.refresh()
-
-    # Should succeed with valid argument
-    await device.set_volume_capabilities(15)
-
-    # Invalid argument types
-    with pytest.raises(TypeError):
-        await device.set_volume_capabilities("50")  # type: ignore[arg-type]
-
-    # Out of range values
-    with pytest.raises(ValueError):
-        await device.set_volume_capabilities(-1)
-
-    with pytest.raises(ValueError):
-        await device.set_volume_capabilities(32)
-
-    await device.disconnect()
+    assert not emulator.requests_named(messages.GetContentDetails.name)
 
 
 @pytest.mark.asyncio
-async def test_set_volume_level(emulator: Emulator):
-    """Test set_volume_level command and validation."""
-    device = Device("127.0.0.1", port=10001)
+async def test_play_status_updates_content_details(emulator: Emulator, device: Device):
+    """Test playback starting loads the title, and stopping clears it."""
+    mock_power_on(emulator)
+    emulator.register_mock_command(
+        ("01",),
+        messages.GetHighlightedSelection.name,
+        (SUCCESS, messages.HighlightedSelection.name, [CONTENT_HANDLE]),
+    )
     await device.refresh()
+    assert device.osd.highlighted == CONTENT_HANDLE
+    assert device.movie.title == ""
 
-    # Should succeed with valid argument
-    await device.set_volume_level(50)
+    await send_play_status(device, emulator, "2")
+    assert device.movie.play_status == const.PLAY_STATUS_PLAYING
+    assert device.movie.handle == CONTENT_HANDLE
+    assert device.movie.title == "Turtle Odyssey"
 
-    # Invalid argument types
-    with pytest.raises(TypeError):
-        await device.set_volume_level("50")  # type: ignore[arg-type]
-
-    # Out of range values
-    with pytest.raises(ValueError):
-        await device.set_volume_level(-1)
-
-    with pytest.raises(ValueError):
-        await device.set_volume_level(101)
-
-    await device.disconnect()
+    await send_play_status(device, emulator, "0")
+    assert device.movie.play_status == const.PLAY_STATUS_NONE
+    assert device.movie.handle == ""
+    assert device.movie.title == ""
 
 
 @pytest.mark.asyncio
-async def test_set_volume_muted(emulator: Emulator):
-    """Test set_volume_muted command and validation."""
-    device = Device("127.0.0.1", port=10001)
-    await device.refresh()
+@pytest.mark.parametrize(
+    ("method", "value", "event"),
+    [
+        (Device.set_volume_capabilities, 0, "VOLUME_CAPABILITIES=0"),
+        (Device.set_volume_capabilities, 31, "VOLUME_CAPABILITIES=31"),
+        (Device.set_volume_level, 0, "VOLUME_LEVEL=0"),
+        (Device.set_volume_level, 100, "VOLUME_LEVEL=100"),
+        (Device.set_volume_muted, True, const.USER_DEFINED_EVENT_MUTE_ON_FB),
+        (Device.set_volume_muted, False, const.USER_DEFINED_EVENT_MUTE_OFF_FB),
+    ],
+    ids=param_id,
+)
+async def test_volume_events(
+    emulator: Emulator,
+    device: Device,
+    method: Callable[[Device, Any], Awaitable[None]],
+    value: int | bool,
+    event: str,
+):
+    """Test volume methods send the matching user defined event."""
+    await device.connect()
 
-    # Should succeed with valid boolean arguments
-    await device.set_volume_muted(True)
-    await device.set_volume_muted(False)
+    await method(device, value)
 
-    # Invalid argument types
-    with pytest.raises(TypeError):
-        await device.set_volume_muted("true")  # type: ignore[arg-type]
+    sent = emulator.requests_named(messages.SendEvent.name)
+    assert len(sent) == 1
+    assert sent[0].fields == [event]
 
-    with pytest.raises(TypeError):
-        await device.set_volume_muted(1)  # type: ignore[arg-type]
 
-    await device.disconnect()
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method", "value", "error"),
+    [
+        (Device.set_volume_capabilities, "15", TypeError),
+        (Device.set_volume_capabilities, True, TypeError),
+        (Device.set_volume_capabilities, -1, ValueError),
+        (Device.set_volume_capabilities, 32, ValueError),
+        (Device.set_volume_level, "50", TypeError),
+        (Device.set_volume_level, True, TypeError),
+        (Device.set_volume_level, -1, ValueError),
+        (Device.set_volume_level, 101, ValueError),
+        (Device.set_volume_muted, "true", TypeError),
+        (Device.set_volume_muted, 1, TypeError),
+    ],
+    ids=param_id,
+)
+async def test_volume_events_invalid(
+    emulator: Emulator,
+    device: Device,
+    method: Callable[[Device, Any], Awaitable[None]],
+    value: object,
+    error: type[Exception],
+):
+    """Test volume methods reject invalid values without sending anything."""
+    await device.connect()
+
+    with pytest.raises(error):
+        await method(device, value)
+    assert not emulator.requests_named(messages.SendEvent.name)
 
 
 @pytest.mark.asyncio
 async def test_refresh_after_reconnect(emulator: Emulator):
     """Test device state is refreshed after auto-reconnect."""
-    device = Device("127.0.0.1", port=10001, reconnect=True, reconnect_delay=0.5)
-
+    device = Device(
+        "127.0.0.1", port=emulator.port, reconnect=True, reconnect_delay=0.1
+    )
     connect_signal = create_signal(device.dispatcher, const.STATE_CONNECTED)
     disconnect_signal = create_signal(device.dispatcher, const.STATE_DISCONNECTED)
 
     await device.connect()
-    assert device.is_connected
     assert device.power.state == const.DEVICE_POWER_STATE_STANDBY
 
-    # Change emulator response so power state differs after reconnect
-    emulator.register_mock_command(
-        ("01",),
-        messages.GetDevicePowerState.name,
-        (SUCCESS, messages.DevicePowerState.name, ["1", "1"]),
-    )
+    mock_power_on(emulator)
 
-    # Allow emulator to register the client before stopping
-    await asyncio.sleep(0.1)
-
-    # Drop connection
+    await emulator.wait_for_client()
     await emulator.stop()
     await disconnect_signal.wait()
 
-    # Reconnect - device state should be refreshed automatically
+    # on_reconnect runs to completion before STATE_CONNECTED is dispatched.
     await emulator.start()
     await connect_signal.wait()
     assert device.is_connected
-
-    # Give the on_reconnect callback a moment to complete
-    await asyncio.sleep(0.1)
-
-    # Power state should reflect the new emulator response
     assert device.power.state == const.DEVICE_POWER_STATE_ON
+    assert device.osd.ui_screen == const.UI_STATE_SCREEN_MOVIE_LIST
 
     await device.disconnect()
 
 
 @pytest.mark.asyncio
-async def test_refresh_partial_failure(emulator: Emulator):
-    """Test refresh applies successful results when some queries fail.
+async def test_refresh_partial_failure(emulator: Emulator, device: Device):
+    """Test refresh applies the queries that succeed when another one fails.
 
-    Devices that lack masking calibration or CinemaScope return error 028
-    (Incompatible video configuration) for GET_SCREEN_MASK2. Previously
-    this caused asyncio.gather to discard all 7 query results. With
-    return_exceptions=True, the 6 successful queries should still update
-    device state.
+    Devices without masking calibration or CinemaScope return error 028
+    (Incompatible video configuration) for GET_SCREEN_MASK2.
     """
-    # Register GET_SCREEN_MASK2 to return error 028
     emulator.register_mock_command(
-        ("01", "#00000000123A"),
+        ("01",),
         messages.GetScreenMask2.name,
         (ERROR_INCOMPATIBLE_VIDEO_CONFIG,),
     )
-
-    # Put device in ON state so refresh() runs its queries
     emulator.register_mock_command(
         ("01",),
-        messages.GetDevicePowerState.name,
-        (SUCCESS, messages.DevicePowerState.name, ["1", "1"]),
+        messages.GetPlayStatus.name,
+        (SUCCESS, messages.PlayStatus.name, play_status_fields("1")),
     )
+    emulator.register_mock_command(
+        ("01",),
+        messages.GetScreenMask.name,
+        (SUCCESS, messages.ScreenMask.name, ["01", "000", "000", "05", "0000", "0000"]),
+    )
+    emulator.register_mock_command(
+        ("01",),
+        messages.GetCinemascapeMode.name,
+        (SUCCESS, messages.CinemascapeMode.name, ["1"]),
+    )
+    emulator.register_mock_command(
+        ("01",),
+        messages.GetCinemascapeMask.name,
+        (SUCCESS, messages.CinemascapeMask.name, ["175"]),
+    )
+    mock_power_on(emulator)
 
-    device = Device("127.0.0.1", port=10001)
     await device.connect()
-
-    # Verify device is ON (required for refresh to proceed)
     assert device.power.state == const.DEVICE_POWER_STATE_ON
 
-    # refresh() should succeed despite GET_SCREEN_MASK2 failing
     await device.refresh()
 
-    # Verify successful queries were applied
+    assert emulator.requests_named(messages.GetScreenMask2.name)
     assert device.osd.ui_screen == const.UI_STATE_SCREEN_MOVIE_LIST
-    assert device.movie.play_status == const.PLAY_STATUS_NONE
+    assert device.movie.play_status == const.PLAY_STATUS_PAUSED
     assert device.automation.movie_location == const.MOVIE_LOCATION_CONTENT
-    assert device.automation.screen_mask_ratio == const.SCREEN_MASK_ASPECT_RATIO_NONE
-    assert device.automation.cinemascape_mode == const.CINEMASCAPE_MODE_NONE
-
-    # Verify failed query left defaults unchanged
-    assert device.automation.screen_mask2_top_mask_abs == 0
-    assert device.automation.screen_mask2_bottom_mask_abs == 0
-    assert device.automation.screen_mask2_top_calibrated == 0
-    assert device.automation.screen_mask2_bottom_calibrated == 0
-
-    await device.disconnect()
+    assert device.automation.screen_mask_ratio == const.SCREEN_MASK_ASPECT_RATIO_133
+    assert device.automation.cinemascape_mode == const.CINEMASCAPE_MODE_ANAMORPHIC
+    # Fetched only after the gathered queries, so refresh carried on past the error.
+    assert device.automation.cinemascape_mask == 175
