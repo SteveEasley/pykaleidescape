@@ -57,7 +57,7 @@ filterwarnings = [
 [tool.ruff]
 required-version = ">=0.16.10"
 exclude = ["examples"]
-lint.extend-select = ["I"]
+lint.extend-select = ["ASYNC", "I"]
 
 [tool.mypy]
 disable_error_code = "annotation-unchecked"

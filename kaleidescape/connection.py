@@ -82,7 +82,7 @@ class Connection:
         self,
         ip: str,
         port: int,
-        timeout: float,
+        timeout: float,  # noqa: ASYNC109 - stored as the per-request timeout
         reconnect: bool = False,
         reconnect_delay: float = const.DEFAULT_RECONNECT_DELAY,
     ) -> None:

@@ -280,7 +280,8 @@ class Request(Message):
 
             async def collector():
                 while (len(self._responses) - 1) < response.count:
-                    await asyncio.sleep(0)
+                    self._event.clear()
+                    await self._event.wait()
 
             try:
                 await asyncio.wait_for(collector(), connection.timeout)
