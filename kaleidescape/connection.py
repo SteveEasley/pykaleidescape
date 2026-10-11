@@ -251,7 +251,7 @@ class Connection:
             except StopIteration as e:
                 await asyncio.sleep(wait)
                 retries = retries - 1
-                if retries == 0:
+                if retries <= 0:
                     raise ConnectionError from e
                 continue
 
@@ -272,12 +272,11 @@ class Connection:
         return response
 
     def clear(self, request: Request):
-        """Clear request from the pending requests list, indicating response has been
-        received."""
-        if request.seq not in self._pending_requests:
-            _LOGGER.error("Request seq not registered '%s'", request)
-        else:
-            self._pending_requests.pop(request.seq)
+        """Release the request's sequence number so another request can use it."""
+        # The seq may already belong to a newer request after a disconnect cleared
+        # the pending list.
+        if self._pending_requests.get(request.seq) is request:
+            del self._pending_requests[request.seq]
 
     @staticmethod
     async def resolve(host: str) -> str:

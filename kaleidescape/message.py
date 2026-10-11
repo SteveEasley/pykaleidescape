@@ -254,10 +254,15 @@ class Request(Message):
         self._event.clear()
         self._responses.clear()
 
-        response = await connection.send(self)
-
-        if not response.multiline:
+        try:
+            return await self._exchange(connection)
+        finally:
+            # Failures must release the seq too: the device allows only 10 in flight,
+            # and a leaked one stays taken until the connection drops.
             connection.clear(self)
+
+    async def _exchange(self, connection: Connection) -> list[Response]:
+        response = await connection.send(self)
 
         if response.is_error:
             lvl = logging.ERROR
@@ -290,7 +295,6 @@ class Request(Message):
                 _LOGGER.warning(err)
                 raise KaleidescapeError(err) from error
 
-            connection.clear(self)
             return self._responses
 
         return [response]
