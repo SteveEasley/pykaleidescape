@@ -52,6 +52,7 @@ class Connection:
         self._reconnect_task: asyncio.Task | None = None
         self._reconnect_enabled: bool = False
         self._pending_requests: dict[int, Request] = {}
+        self._next_seq: int = 0
 
     @property
     def dispatcher(self) -> Dispatcher:
@@ -139,7 +140,10 @@ class Connection:
                         asyncio.create_task(self._on_event(response))
                 elif response.device_id == const.LOCAL_CPDID:
                     if response.seq not in self._pending_requests:
-                        _LOGGER.error("Response seq not registered '%s'", response)
+                        # Usually a late reply to a request that already timed out.
+                        _LOGGER.warning(
+                            "Ignoring response with no pending request '%s'", response
+                        )
                     else:
                         request = self._pending_requests[response.seq]
                         request.set(response)
@@ -243,11 +247,15 @@ class Connection:
 
         while request.seq < 0:
             try:
-                # Devices can only handle 10 concurrent requests. Find next available
-                # sequence number not in use.
+                # Devices can only handle 10 concurrent requests. Numbers are handed
+                # out in rotation so one freed by a timed-out request is reused last;
+                # the device's late reply to it would otherwise reach the next request.
                 request.seq = next(
-                    i for i in range(10) if i not in self._pending_requests
+                    seq
+                    for i in range(10)
+                    if (seq := (self._next_seq + i) % 10) not in self._pending_requests
                 )
+                self._next_seq = (request.seq + 1) % 10
             except StopIteration as e:
                 await asyncio.sleep(wait)
                 retries = retries - 1

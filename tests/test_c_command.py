@@ -75,6 +75,25 @@ async def test_timeouts_release_sequence_numbers(emulator: Emulator):
 
 
 @pytest.mark.asyncio
+async def test_timed_out_sequence_number_reused_last(emulator: Emulator):
+    """Test sequence numbers rotate, so a timed out one is the last to be reused."""
+    connection = Connection(Dispatcher())
+    await connection.connect("127.0.0.1", port=emulator.port, timeout=0.1)
+
+    with pytest.raises(KaleidescapeError):
+        await NoResponse().send(connection)
+    assert emulator.requests_named(NoResponse.name)[0].seq == 0
+
+    seqs = [
+        (await messages.GetAvailableDevices().send(connection))[0].seq
+        for _ in range(10)
+    ]
+    assert seqs == [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+
+    await connection.disconnect()
+
+
+@pytest.mark.asyncio
 async def test_commands_fail_when_disconnected(emulator: Emulator):
     """Test calling commands fail when disconnected."""
     connection = Connection(Dispatcher())
