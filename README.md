@@ -199,36 +199,33 @@ This repository includes a full test suite and an in-process emulator for the Ka
 
 ### Local setup
 
+The project is managed with [uv](https://docs.astral.sh/uv/):
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+uv sync
+uv run prek install   # optional: run the checks on every commit
 ```
 
 ### Running tests
 
-Use `pytest` to run the test suite:
-
 ```bash
-pytest
+uv run pytest
 ```
 
 The tests automatically start the in-process emulator; no physical Kaleidescape hardware is required.
 
-If you have `tox` installed, you can also run the full test matrix defined in `tox.ini`:
+To test against another supported Python version:
 
 ```bash
-tox
+uv run --python 3.11 pytest
 ```
 
 ### Linting, type checking, and formatting
 
-This project uses `ruff` (for linting and formatting) and `mypy`.
+Checks run as [prek](https://github.com/j178/prek) hooks: `ruff` (linting and formatting), `codespell`, `zizmor`, `yamllint`, `mypy`, and `pylint`.
 
 ```bash
-ruff check kaleidescape tests
-ruff format kaleidescape tests
-mypy kaleidescape
+uv run prek run --all-files
 ```
 
 When contributing changes, please keep tests passing and the linters clean.

@@ -71,7 +71,7 @@ High-level architecture:
 
 - **Connection (`kaleidescape/connection.py`)**
   - Async TCP client using `asyncio.open_connection`.
-  - Resolves hostnames to IPs via `Connection.resolve` (using `aiodns`).
+  - Resolves hostnames to IPs via `Connection.resolve` (using the event loop's `getaddrinfo`).
   - Manages:
     - Internal reader task (`_response_handler`) that receives protocol lines and turns them into `Response` objects.
     - A `dispatcher` that emits connection-state signals (e.g., `STATE_CONNECTED`, `STATE_DISCONNECTED`).
@@ -226,10 +226,10 @@ Guidelines:
    - In this repo, the default test command is:
 
      ```bash
-     pytest
+     uv run pytest
      ```
 
-   - After any non-trivial change, run the test suite and ensure it passes.
+   - After any non-trivial change, run the test suite and the checks (`uv run prek run --all-files`) and ensure they pass.
 
 ---
 
@@ -238,7 +238,8 @@ Guidelines:
 From project metadata (`pyproject.toml`):
 
 - Python: target `>=3.11` (classifiers include `3.11` through `3.14`). Code uses `from __future__ import annotations`.
-- Linting: `ruff` is used, with `lint.extend-select = ["I"]` (import sorting).
+- Tooling: managed with `uv`; checks run as `prek` hooks. Dev tool versions are pinned to match Home Assistant's.
+- Linting: `ruff` is used, with `lint.extend-select = ["ASYNC", "I"]` (flake8-async and import sorting).
 - Type checking: `mypy` is configured with `disable_error_code = "annotation-unchecked"` but type hints are widely used.
 
 ### Style Expectations

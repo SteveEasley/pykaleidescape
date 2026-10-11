@@ -14,13 +14,9 @@ This project publishes to PyPI using GitHub Actions and Trusted Publishing.
 1. Update package version in `kaleidescape/_version.py`:
    - Set `__version__ = "X.Y.Z"` (example: `1.1.2`).
 2. Run quality checks locally:
-   - `python -m pip install -e ".[dev]"`
-   - `ruff check kaleidescape tests`
-   - `mypy kaleidescape tests`
-   - `pytest -q`
-3. Optionally validate build artifacts:
-   - `python -m build`
-   - `twine check dist/*`
+   - `uv run prek run --all-files`
+   - `uv run pytest`
+3. Optionally validate the build with `uv build`.
 4. Commit and push the version bump (and any release notes/changelog updates) to `main`.
 5. Create and publish a GitHub release:
    - Tag must be `vX.Y.Z` (example: `v1.1.2`).
@@ -33,9 +29,8 @@ Publishing the GitHub release triggers `.github/workflows/publish.yml`, which:
 1. Checks out the repository.
 2. Verifies release tag version matches `kaleidescape.__version__`:
    - `v1.1.2` tag must match `__version__ = "1.1.2"`.
-3. Builds the package (`sdist` + wheel).
-4. Runs `twine check` on built artifacts.
-5. Publishes artifacts to PyPI via OIDC Trusted Publishing.
+3. Builds the package (`sdist` + wheel) with `uv build`.
+4. Publishes artifacts to PyPI via OIDC Trusted Publishing, which also verifies their metadata.
 
 ## Verification
 

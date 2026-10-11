@@ -4,34 +4,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+Tooling is managed with uv. Dev tool versions in `pyproject.toml` and `.pre-commit-config.yaml` are pinned to match Home Assistant's.
+
 **Setup:**
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+uv sync
+uv run prek install   # optional: run the hooks on every commit
 ```
 
-**Format:**
+**Lint, format & type-check (all prek hooks: ruff, codespell, zizmor, yamllint, mypy, pylint):**
 ```bash
-make format
-# or: ruff format kaleidescape tests
-```
-
-**Lint & type-check:**
-```bash
-make check
-# or: ruff check kaleidescape tests --fix && mypy kaleidescape tests && pylint kaleidescape tests
+uv run prek run --all-files
 ```
 
 **Run all tests:**
 ```bash
-make test
-# or: pytest
+uv run pytest
+```
+
+**Run on another Python version (3.11 is the minimum supported):**
+```bash
+uv run --python 3.11 pytest
 ```
 
 **Run a single test:**
 ```bash
-pytest tests/test_d_device.py::test_name
-pytest -k "pattern"
+uv run pytest tests/test_d_device.py::test_name
+uv run pytest -k "pattern"
+```
+
+**Build:**
+```bash
+uv build
 ```
 
 ## Architecture
