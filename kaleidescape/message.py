@@ -29,6 +29,25 @@ registry: dict[str, type[Response]] = {}
 _LOGGER = logging.getLogger(__name__)
 
 
+def _encode_field(value: str) -> str:
+    """Escape delimiters and control characters in a request field."""
+    escapes = {
+        "\\": r"\\",
+        "/": r"\/",
+        ":": r"\:",
+        "\n": r"\n",
+        "\r": r"\r",
+        "\t": r"\t",
+    }
+    return "".join(
+        escapes.get(
+            char,
+            f"\\d{ord(char):03}" if ord(char) < 32 or 127 <= ord(char) <= 255 else char,
+        )
+        for char in value
+    )
+
+
 def register(cls):
     """Decorator registering a message response class for factory use."""
     registry[cls.name] = cls
@@ -235,9 +254,15 @@ class Request(Message):
 
     log_invalid_request: bool = True
 
-    def __init__(self, zone: int = 0, fields: list[str] | None = None):
-        """Initializes request."""
-        super().__init__(LOCAL_CPDID, zone, fields=fields)
+    def __init__(
+        self,
+        zone: int = 0,
+        fields: list[str] | None = None,
+        *,
+        device_id: str = LOCAL_CPDID,
+    ):
+        """Initialize a request, optionally targeting another component."""
+        super().__init__(device_id, zone, fields=fields)
 
         self.seq = -1
         self._type = MESSAGE_TYPE_REQUEST
@@ -310,10 +335,14 @@ class Request(Message):
         self._event.set()
 
     def __str__(self) -> str:
-        if self._message == "":
-            seq = "!" if self.seq < 0 else str(self.seq)
-            fields = ":".join(self._fields) + ":" if self._fields else ""
-            self._message = f"{self._device_id}/{seq}/{self.name}:{fields}"
+        seq = "!" if self.seq < 0 else str(self.seq)
+        fields = (
+            ":".join(_encode_field(field) for field in self._fields) + ":"
+            if self._fields
+            else ""
+        )
+        target = self._device_id + (f".{self._zone:02}" if self._zone else "")
+        self._message = f"{target}/{seq}/{self.name}:{fields}"
         return self._message
 
     def __repr__(self) -> str:

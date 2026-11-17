@@ -155,6 +155,18 @@ async def test_get_device_info(connection: Connection):
 
 
 @pytest.mark.asyncio
+async def test_request_routing_and_field_escaping(emulator, connection):
+    """A serial-targeted request arrives intact and its reply is matched."""
+    serial = "#ABC123"
+    emulator.register_mock_command((serial,), messages.SendEvent.name, (0, None))
+    fields = ["a:b/c\\d\n\t", ""]
+    await messages.SendEvent(fields=fields, device_id=serial).send(connection)
+    request = emulator.requests_named(messages.SendEvent.name)[-1]
+    assert request.device_id == serial
+    assert request.fields == fields
+
+
+@pytest.mark.asyncio
 async def test_concurrency(connection: Connection):
     """Test requests beyond the 10 sequence numbers wait for one to free up."""
     requests = [messages.GetAvailableDevices() for _ in range(12)]
