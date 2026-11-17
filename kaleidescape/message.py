@@ -1461,3 +1461,57 @@ class MenuToggle(Request):
     """Class for KALEIDESCAPE_MENU_TOGGLE messages."""
 
     name = const.KALEIDESCAPE_MENU_TOGGLE
+
+
+class PlayOrPause(Request):
+    """Class for PLAY_OR_PAUSE messages."""
+
+    name = const.PLAY_OR_PAUSE
+
+
+class PauseOn(Request):
+    """Class for PAUSE_ON messages."""
+
+    name = const.PAUSE_ON
+
+
+class PauseOff(Request):
+    """Class for PAUSE_OFF messages."""
+
+    name = const.PAUSE_OFF
+
+
+class PageUp(Request):
+    """Class for PAGE_UP messages."""
+
+    name = const.PAGE_UP
+
+
+class PageDown(Request):
+    """Class for PAGE_DOWN messages."""
+
+    name = const.PAGE_DOWN
+
+
+class Details(Request):
+    """Class for DETAILS messages."""
+
+    name = const.DETAILS
+
+
+class GoSearch(Request):
+    """Class for GO_SEARCH messages."""
+
+    name = const.GO_SEARCH
+
+
+class MenuOn(Request):
+    """Class for KALEIDESCAPE_MENU_ON messages."""
+
+    name = const.KALEIDESCAPE_MENU_ON
+
+
+class MenuOff(Request):
+    """Class for KALEIDESCAPE_MENU_OFF messages."""
+
+    name = const.KALEIDESCAPE_MENU_OFF
