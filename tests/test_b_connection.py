@@ -214,3 +214,21 @@ async def test_unhandled_exception_triggers_reconnect(emulator: Emulator):
     assert connection.state == STATE_CONNECTED
 
     await connection.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_event_callback_error_is_logged(caplog):
+    """Event callback errors are logged with their traceback."""
+
+    async def failing_callback(response):
+        raise ValueError("event callback detail")
+
+    connection = Connection(Dispatcher(), on_event=failing_callback)
+    response = Response.factory("01/!/000:TEST:/1")
+    await connection._deliver_event(response)  # pylint: disable=protected-access
+    assert any(
+        record.getMessage() == "Event callback failed"
+        and record.exc_info
+        and str(record.exc_info[1]) == "event callback detail"
+        for record in caplog.records
+    )

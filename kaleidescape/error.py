@@ -30,6 +30,14 @@ class KaleidescapeError(Exception):
     """Kaleidescape errors."""
 
 
+class RequestNotSentError(KaleidescapeError):
+    """The request was not sent to the device."""
+
+
+class RequestOutcomeUnknownError(KaleidescapeError):
+    """The request may have been executed without a complete reply."""
+
+
 class SystemNotFoundError(Exception):
     """Error finding system."""
 

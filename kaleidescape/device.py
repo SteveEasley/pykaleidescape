@@ -139,7 +139,7 @@ class Device:
             await self.connect()
             return
 
-        if self.power.state != const.DEVICE_POWER_STATE_ON:
+        if self.power.state != const.DEVICE_POWER_STATE_ON or self.is_server_only:
             return
 
         results = await asyncio.gather(

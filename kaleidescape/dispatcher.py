@@ -33,6 +33,7 @@ class Dispatcher:
         self._signals: list[Signal] = []
         self._loop = asyncio.get_event_loop()
         self._disconnects = []
+        self._tasks: set[asyncio.Task] = set()
 
     def connect(self, target: Callable) -> Signal:
         """Return a new signal that runs the target function."""
@@ -68,6 +69,19 @@ class Dispatcher:
         while isinstance(check_target, functools.partial):
             check_target = check_target.func
         if inspect.iscoroutinefunction(check_target):
-            return self._loop.create_task(target(*args))
-        target(*args)
+            task = self._loop.create_task(self._run_target(target, *args))
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
+            return task
+        try:
+            target(*args)
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Signal listener failed")
         return None
+
+    async def _run_target(self, target: Callable, *args: Any) -> None:
+        """Log async listener failures without leaking task exceptions."""
+        try:
+            await target(*args)
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Signal listener failed")

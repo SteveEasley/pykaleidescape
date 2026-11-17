@@ -12,7 +12,11 @@ from kaleidescape import message as messages
 from kaleidescape.connection import Connection
 from kaleidescape.const import LOCAL_CPDID, STATE_CONNECTED, STATE_DISCONNECTED
 from kaleidescape.dispatcher import Dispatcher
-from kaleidescape.error import KaleidescapeError, MessageError
+from kaleidescape.error import (
+    KaleidescapeError,
+    MessageError,
+    RequestOutcomeUnknownError,
+)
 
 from . import create_signal
 from .emulator import Emulator, NoResponse
@@ -166,3 +170,26 @@ async def test_concurrency(connection: Connection):
     )
     seqs = sorted(r[0].seq for r in responses)
     assert seqs == [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+
+@pytest.mark.asyncio
+async def test_connection_loss_fails_pending_immediately(emulator, connection):
+    """A lost connection wakes a request without waiting for its timeout."""
+    task = asyncio.create_task(NoResponse().send(connection))
+    while not emulator.requests_named(NoResponse.name):  # noqa: ASYNC110
+        await asyncio.sleep(0.001)
+    await emulator.stop()
+    with pytest.raises(RequestOutcomeUnknownError):
+        await asyncio.wait_for(task, 0.5)
+
+
+@pytest.mark.asyncio
+async def test_zero_content_details_count(emulator, connection):
+    """An empty multi-line response is complete immediately."""
+    emulator.register_mock_command(
+        ("01",),
+        messages.GetContentDetails.name,
+        (0, messages.ContentDetailsOverview.name, ["0", "handle", "table"]),
+    )
+    responses = await messages.GetContentDetails(fields=["handle"]).send(connection)
+    assert len(responses) == 1

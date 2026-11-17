@@ -10,7 +10,12 @@ from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, cast
 
 from . import const
-from .error import KaleidescapeError, MessageParseError, format_error
+from .error import (
+    MessageParseError,
+    RequestNotSentError,
+    RequestOutcomeUnknownError,
+    format_error,
+)
 from .message import Response
 
 if TYPE_CHECKING:
@@ -53,6 +58,7 @@ class Connection:
         self._reconnect_enabled: bool = False
         self._pending_requests: dict[int, Request] = {}
         self._next_seq: int = 0
+        self._event_tasks: set[asyncio.Task] = set()
 
     @property
     def dispatcher(self) -> Dispatcher:
@@ -137,7 +143,9 @@ class Connection:
                 if response.is_event:
                     # Events are unsolicited notifications about a change in state.
                     if self._on_event:
-                        asyncio.create_task(self._on_event(response))
+                        task = asyncio.create_task(self._deliver_event(response))
+                        self._event_tasks.add(task)
+                        task.add_done_callback(self._event_tasks.discard)
                 elif response.device_id == const.LOCAL_CPDID:
                     if response.seq not in self._pending_requests:
                         # Usually a late reply to a request that already timed out.
@@ -156,6 +164,15 @@ class Connection:
                 _LOGGER.exception("Unhandled exception in response handler")
                 asyncio.create_task(self._handle_connection_error(err))
                 return
+
+    async def _deliver_event(self, response: Response) -> None:
+        """Run an event callback and report failures."""
+        assert self._on_event is not None
+        try:
+            await self._on_event(response)
+        except Exception:  # pylint: disable=broad-except
+            # Application callbacks can raise arbitrary exceptions.
+            _LOGGER.exception("Event callback failed")
 
     async def _handle_connection_error(self, err: Exception):
         """Handle connection failures and schedule reconnect."""
@@ -221,6 +238,8 @@ class Connection:
 
     async def _disconnect(self):
         """Disconnect from server."""
+        for request in self._pending_requests.values():
+            request.fail(RequestOutcomeUnknownError("Connection closed before reply"))
         if self._response_handler_task:
             self._response_handler_task.cancel()
             with contextlib.suppress(BaseException):
@@ -239,7 +258,7 @@ class Connection:
         if self._state != const.STATE_CONNECTED:
             err = "Not connected to device"
             _LOGGER.error(err)
-            raise KaleidescapeError(err)
+            raise RequestNotSentError(err)
 
         wait = 0.01
         assert self._timeout is not None
@@ -260,8 +279,11 @@ class Connection:
                 await asyncio.sleep(wait)
                 retries = retries - 1
                 if retries <= 0:
-                    raise ConnectionError from e
+                    raise RequestNotSentError("No request sequence available") from e
                 continue
+
+        if self._state != const.STATE_CONNECTED or self._writer is None:
+            raise RequestNotSentError("Not connected to device")
 
         self._pending_requests[request.seq] = request
 
@@ -275,7 +297,7 @@ class Connection:
         except (TimeoutError, OSError, ConnectionError) as err:
             msg = f"Request '{request}' failed with '{format_error(err)}'"
             _LOGGER.warning(msg)
-            raise KaleidescapeError(msg) from err
+            raise RequestOutcomeUnknownError(msg) from err
 
         return response
 
