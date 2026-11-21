@@ -287,3 +287,10 @@ def test_user_defined_event_parsing():
     assert isinstance(resp, UserDefinedEvent)
     assert resp.name == "USER_DEFINED_EVENT"
     assert resp.fields == ["SET_VOLUME_LEVEL", "28"]
+
+
+@pytest.mark.parametrize("escape", [r"\d12x", r"\d12", r"\d999"])
+def test_malformed_decimal_escape(escape):
+    """Bad decimal escapes are parse errors, not connection failures."""
+    with pytest.raises(MessageParseError):
+        MessageParser(f"01/0/000:TEST:{escape}:/1")

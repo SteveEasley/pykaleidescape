@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from . import const
 from .const import LOCAL_CPDID
-from .error import KaleidescapeError, MessageError, MessageParseError
+from .error import MessageError, MessageParseError, RequestOutcomeUnknownError
 
 if TYPE_CHECKING:
     from .connection import Connection
@@ -96,7 +96,17 @@ class MessageParser:
             char = self.message[pos]
             if escaped:
                 if char == "d":
-                    field += chr(int(self.message[pos + 1 : pos + 4]))
+                    digits = self.message[pos + 1 : pos + 4]
+                    if (
+                        len(digits) != 3
+                        or not digits.isascii()
+                        or not digits.isdigit()
+                        or int(digits) > 255
+                    ):
+                        raise MessageParseError(
+                            const.ERROR_INVALID_PARAMETER, self.message
+                        )
+                    field += chr(int(digits))
                     pos = pos + 3
                 elif char == "r":
                     field += "\r"
@@ -243,6 +253,7 @@ class Request(Message):
         self._type = MESSAGE_TYPE_REQUEST
         self._responses: list[Response] = []
         self._event = asyncio.Event()
+        self._failure: RequestOutcomeUnknownError | None = None
 
     @property
     def fields(self) -> list[str]:
@@ -253,6 +264,7 @@ class Request(Message):
         """Sends request to hardware device, returning one or more responses."""
         self._event.clear()
         self._responses.clear()
+        self._failure = None
 
         try:
             return await self._exchange(connection)
@@ -277,23 +289,20 @@ class Request(Message):
         _LOGGER.debug("Request %s received %s", repr(self), repr(response))
 
         if response.multiline:
-            if not response.count:
-                _LOGGER.error(
-                    "Command %s response had no count '%s'", repr(self), repr(response)
-                )
-                raise KaleidescapeError("Response count expected")
 
             async def collector():
                 while (len(self._responses) - 1) < response.count:
                     self._event.clear()
                     await self._event.wait()
+                    if self._failure:
+                        raise self._failure
 
             try:
                 await asyncio.wait_for(collector(), connection.timeout)
             except TimeoutError as error:
                 err = f"Command {self!r} timed out waiting for responses"
                 _LOGGER.warning(err)
-                raise KaleidescapeError(err) from error
+                raise RequestOutcomeUnknownError(err) from error
 
             return self._responses
 
@@ -302,7 +311,14 @@ class Request(Message):
     async def wait(self) -> Response:
         """Wait until the event is set."""
         await self._event.wait()
+        if self._failure:
+            raise self._failure
         return self._responses[0]
+
+    def fail(self, error: RequestOutcomeUnknownError) -> None:
+        """Wake the waiter when the connection is lost."""
+        self._failure = error
+        self._event.set()
 
     def set(self, response: Response) -> None:
         """Complete request."""
