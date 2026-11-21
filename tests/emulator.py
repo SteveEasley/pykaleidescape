@@ -42,6 +42,16 @@ SIMPLE_COMMANDS: tuple[type[messages.Request], ...] = (
     messages.GoMovies,
     messages.GoMovieCovers,
     messages.MenuToggle,
+    messages.PlayOrPause,
+    messages.PauseOn,
+    messages.PauseOff,
+    messages.PageUp,
+    messages.PageDown,
+    messages.Details,
+    messages.GoSearch,
+    messages.MenuOn,
+    messages.MenuOff,
+
 )
 
 

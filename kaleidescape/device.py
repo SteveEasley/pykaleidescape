@@ -310,6 +310,46 @@ class Device:
         """Send menu toggle command."""
         await self._send(messages.MenuToggle)
 
+    async def play_or_pause(self) -> None:
+        """Send PLAY_OR_PAUSE command."""
+        await self._send(messages.PlayOrPause)
+
+    async def pause_on(self) -> None:
+        """Send PAUSE_ON command."""
+        await self._send(messages.PauseOn)
+
+    async def pause_off(self) -> None:
+        """Send PAUSE_OFF command."""
+        await self._send(messages.PauseOff)
+
+    async def page_up(self) -> None:
+        """Send PAGE_UP command."""
+        await self._send(messages.PageUp)
+
+    async def page_down(self) -> None:
+        """Send PAGE_DOWN command."""
+        await self._send(messages.PageDown)
+
+    async def details(self) -> None:
+        """Send DETAILS command."""
+        await self._send(messages.Details)
+
+    async def go_search(self) -> None:
+        """Send GO_SEARCH command."""
+        await self._send(messages.GoSearch)
+
+    async def menu_on(self) -> None:
+        """Send KALEIDESCAPE_MENU_ON command."""
+        await self._send(messages.MenuOn)
+
+    async def menu_off(self) -> None:
+        """Send KALEIDESCAPE_MENU_OFF command."""
+        await self._send(messages.MenuOff)
+
+    async def back(self) -> None:
+        """Send BACK (the CANCEL command is its protocol alias)."""
+        await self.cancel()
+
     async def set_volume_capabilities(self, value: int) -> None:
         """Send volume capabilities event."""
         if not isinstance(value, int) or isinstance(value, bool):
