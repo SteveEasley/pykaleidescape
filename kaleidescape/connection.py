@@ -138,7 +138,7 @@ class Connection:
                     # Events are unsolicited notifications about a change in state.
                     if self._on_event:
                         asyncio.create_task(self._on_event(response))
-                elif response.device_id == const.LOCAL_CPDID:
+                else:
                     if response.seq not in self._pending_requests:
                         # Usually a late reply to a request that already timed out.
                         _LOGGER.warning(
